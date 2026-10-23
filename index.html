@@ -172,6 +172,7 @@ body {
 }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .seg button:disabled { opacity: .45; cursor: not-allowed; }
+#down, #up { min-width: 40px; padding: 0; font-size: 20px; font-weight: 500; color: var(--ink); }
 
 .point {
   border: 1px solid var(--rule); border-radius: 12px; padding: 10px 12px;
@@ -253,7 +254,7 @@ body {
   </div>
 
   <div class="slider">
-    <input id="rise" type="range" min="0" max="1000" step="1" value="316" aria-label="Water rise in metres">
+    <input id="rise" type="range" min="0" max="1000" step="1" value="247" aria-label="Water rise in metres">
     <div class="ticks" id="ticks" aria-hidden="true"></div>
   </div>
 
@@ -262,6 +263,10 @@ body {
       <svg id="playIcon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1l11 6-11 6z" fill="currentColor"/></svg>
       <span id="playText">Play rise</span>
     </button>
+    <div class="seg" role="group" aria-label="Fine adjust">
+      <button type="button" id="down" aria-label="Lower the water">&minus;</button>
+      <button type="button" id="up" aria-label="Raise the water">+</button>
+    </div>
     <div class="seg" role="group" aria-label="Measure rise from">
       <button type="button" id="modeSea" aria-pressed="true">Sea level</button>
       <button type="button" id="modePoint" aria-pressed="false" disabled title="Tap the map to drop a pin first">From pin</button>
@@ -286,7 +291,7 @@ body {
   <p class="note">
     Bathtub fill: all ground below the water surface turns blue, even where water couldn't reach. Ignores defences and drainage. For real risk, use the <a href="https://check-long-term-flood-risk.service.gov.uk/" target="_blank" rel="noopener">Environment Agency checker</a>.
   </p>
-  <p class="attr-mobile">Elevation: Mapzen Terrain Tiles. Map: © OpenStreetMap, © CARTO. Imagery: © Esri.</p>
+  <p class="attr-mobile">Elevation: Mapzen Terrain Tiles. Map: © OpenStreetMap contributors. Imagery: © Esri.</p>
 </section>
 
 <button class="layerbtn" id="bgToggle" type="button" aria-label="Switch to satellite imagery">
@@ -303,12 +308,14 @@ body {
 (function () {
   "use strict";
 
-  const MAX_RISE = 30;            // metres at the end of the slider
-  const CURVE = 2;                // slider is squared so small rises get more travel
+  const MAX_RISE = 200;           // metres at the end of the slider
+  const CURVE = 3;                // slider is cubed so small rises (0-5 m) get plenty of travel
   const START = { lon: -1.40, lat: 50.885, zoom: 12.3 }; // Southampton Water
 
   const $ = (id) => document.getElementById(id);
   const fmt = (m, d = 1) => (Math.round(m * 10 ** d) / 10 ** d).toFixed(d);
+  // fine steps for small rises, bigger steps once the water is high
+  const stepFor = (r) => (r < 5 ? 0.1 : r < 50 ? 1 : 5);
 
   // ---- state ----
   let rise = 3.0;
@@ -321,22 +328,26 @@ body {
   const riseToSlider = (r) => Math.round(1000 * Math.pow(r / MAX_RISE, 1 / CURVE));
 
   // ---- layers ----
-  const carto = (style) => new ol.source.XYZ({
-    url: "https://{a-d}.basemaps.cartocdn.com/rastertiles/" + style + "/{z}/{x}/{y}@2x.png",
-    tilePixelRatio: 2, maxZoom: 20, crossOrigin: "anonymous",
-    attributions: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions" target="_blank">CARTO</a>'
-  });
-
-  const mapBase = new ol.layer.Tile({ source: carto("voyager_nolabels") });
-  const satBase = new ol.layer.Tile({
-    visible: false,
-    source: new ol.source.XYZ({
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  // Street map: OpenStreetMap's own tiles (no key needed; labels are baked in)
+  const mapBase = new ol.layer.Tile({
+    source: new ol.source.OSM({
       maxZoom: 19, crossOrigin: "anonymous",
-      attributions: "Imagery © Esri, Maxar, Earthstar Geographics"
+      attributions: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
     })
   });
-  const labels = new ol.layer.Tile({ source: carto("voyager_only_labels"), zIndex: 3 });
+  const esri = (path, attributions) => new ol.source.XYZ({
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/" + path + "/MapServer/tile/{z}/{y}/{x}",
+    maxZoom: 19, crossOrigin: "anonymous", attributions
+  });
+  const satBase = new ol.layer.Tile({
+    visible: false,
+    source: esri("World_Imagery", "Imagery © Esri, Maxar, Earthstar Geographics")
+  });
+  // place names drawn above the water in satellite mode
+  const labels = new ol.layer.Tile({
+    visible: false, zIndex: 3,
+    source: esri("Reference/World_Boundaries_and_Places", "Labels © Esri")
+  });
 
   const elevSource = new ol.source.XYZ({
     url: "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
@@ -376,7 +387,7 @@ body {
     layers: [mapBase, satBase, flood, labels],
     overlays: [pinOverlay],
     controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attributionOptions: { collapsible: false } }),
-    view: new ol.View({ center: ol.proj.fromLonLat([START.lon, START.lat]), zoom: START.zoom, maxZoom: 18 })
+    view: new ol.View({ center: ol.proj.fromLonLat([START.lon, START.lat]), zoom: START.zoom, maxZoom: 19 })
   });
 
   // ---- rendering the controls ----
@@ -423,7 +434,7 @@ body {
   }
 
   // ticks at their true positions on the curved slider
-  [0, 1, 2, 5, 10, 20, 30].forEach((m) => {
+  [0, 1, 2, 5, 10, 20, 50, 100, 200].forEach((m) => {
     const s = document.createElement("span");
     s.style.left = (riseToSlider(m) / 10) + "%";
     s.textContent = m;
@@ -431,6 +442,15 @@ body {
   });
 
   $("rise").addEventListener("input", (e) => { stopPlay(); setRise(sliderToRise(+e.target.value), true); });
+
+  // step buttons for precise control (0.1 m below 5 m, then 1 m, then 5 m)
+  function nudge(dir) {
+    stopPlay();
+    const s = dir > 0 ? stepFor(rise) : stepFor(Math.max(0, rise - 1e-6));
+    setRise(Math.round((rise + dir * s) / s) * s);
+  }
+  $("down").addEventListener("click", () => nudge(-1));
+  $("up").addEventListener("click", () => nudge(1));
 
   // ---- play ----
   function stopPlay() {
@@ -447,7 +467,7 @@ body {
     $("playIcon").innerHTML = '<rect x="2" y="1" width="3.5" height="12" fill="currentColor"/><rect x="8.5" y="1" width="3.5" height="12" fill="currentColor"/>';
     const target = 1000;
     let v = +$("rise").value >= target ? 0 : +$("rise").value;
-    const dur = 9000; // full slider travel in ms
+    const dur = 14000; // full slider travel in ms
     let last = performance.now();
     const step = (now) => {
       if (!playing) return;
@@ -475,7 +495,7 @@ body {
   let sat = false;
   $("bgToggle").addEventListener("click", () => {
     sat = !sat;
-    satBase.setVisible(sat); mapBase.setVisible(!sat);
+    satBase.setVisible(sat); labels.setVisible(sat); mapBase.setVisible(!sat);
     $("bgText").textContent = sat ? "Map" : "Satellite";
     $("bgToggle").setAttribute("aria-label", sat ? "Switch to street map" : "Switch to satellite imagery");
   });
