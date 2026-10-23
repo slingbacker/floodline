@@ -96,7 +96,7 @@ body {
   position: fixed; z-index: 4; left: 0; right: 0; bottom: 0;
   background: var(--panel); color: var(--ink);
   border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
-  padding-top: 14px;
+  padding-top: 0;
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -110,6 +110,28 @@ body {
     padding-bottom: 16px;
   }
 }
+
+/* Drag handle: swipe down to shrink the sheet to the readout and slider, up (or tap) to expand */
+.handle {
+  display: block; width: calc(100% + 32px); margin: 0 -16px -6px; padding: 10px 0 4px;
+  border: 0; background: transparent; cursor: grab; touch-action: none;
+}
+.handle::before {
+  content: ""; display: block; margin: 0 auto; width: 40px; height: 5px; border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.handle:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 12px; }
+.readout { touch-action: none; }
+.sheet.dragging { transition: none; }
+.sheet { transition: transform .2s ease; }
+.more {
+  display: grid; grid-template-rows: 1fr; margin-top: 0;
+  transition: grid-template-rows .25s ease, margin-top .25s ease;
+}
+.more > div { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
+.sheet.collapsed .more { grid-template-rows: 0fr; margin-top: -12px; }
+.sheet.collapsed .rise-meta { display: none; }
+@media (prefers-reduced-motion: reduce) { .more, .sheet { transition: none; } }
 
 .readout { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .rise {
@@ -242,7 +264,8 @@ body {
   <ul class="results" id="results" hidden></ul>
 </div>
 
-<section class="sheet" aria-label="Flood controls">
+<section class="sheet" id="sheet" aria-label="Flood controls">
+  <button class="handle" id="handle" type="button" aria-expanded="true" aria-controls="more" aria-label="Hide details"></button>
   <div class="readout">
     <div>
       <div class="label" id="riseLabel">Rise above sea level</div>
@@ -258,6 +281,7 @@ body {
     <div class="ticks" id="ticks" aria-hidden="true"></div>
   </div>
 
+  <div class="more" id="more"><div>
   <div class="row">
     <button class="play" id="play" type="button" aria-pressed="false">
       <svg id="playIcon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1l11 6-11 6z" fill="currentColor"/></svg>
@@ -292,6 +316,7 @@ body {
     Bathtub fill: all ground below the water surface turns blue, even where water couldn't reach. Ignores defences and drainage. For real risk, use the <a href="https://check-long-term-flood-risk.service.gov.uk/" target="_blank" rel="noopener">Environment Agency checker</a>.
   </p>
   <p class="attr-mobile">Elevation: Mapzen Terrain Tiles. Map: © OpenStreetMap contributors. Imagery: © Esri.</p>
+  </div></div>
 </section>
 
 <button class="layerbtn" id="bgToggle" type="button" aria-label="Switch to satellite imagery">
@@ -500,8 +525,51 @@ body {
     $("bgToggle").setAttribute("aria-label", sat ? "Switch to street map" : "Switch to satellite imagery");
   });
 
+  // ---- collapsible sheet ----
+  const sheet = $("sheet");
+  function setCollapsed(c) {
+    sheet.classList.toggle("collapsed", c);
+    $("handle").setAttribute("aria-expanded", String(!c));
+    $("handle").setAttribute("aria-label", c ? "Show details" : "Hide details");
+    $("more").inert = c;
+    try { localStorage.setItem("floodline.collapsed", c ? "1" : "0"); } catch (e) {}
+  }
+  try { if (localStorage.getItem("floodline.collapsed") === "1") setCollapsed(true); } catch (e) {}
+
+  // drag on the handle or the big readout; a short tap on the handle toggles
+  let drag = null;
+  [$("handle"), document.querySelector(".readout")].forEach((el) => {
+    el.addEventListener("pointerdown", (e) => {
+      drag = { y: e.clientY, dy: 0, id: e.pointerId, el };
+      el.setPointerCapture(e.pointerId);
+      sheet.classList.add("dragging");
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag.dy = e.clientY - drag.y;
+      const collapsed = sheet.classList.contains("collapsed");
+      // follow the finger a little, with resistance in the direction that does nothing
+      const d = collapsed ? Math.min(drag.dy, 0) * 0.3 + Math.max(drag.dy, 0) * 0.15
+                          : Math.max(drag.dy, 0) * 0.6 + Math.min(drag.dy, 0) * 0.15;
+      sheet.style.transform = "translateY(" + d + "px)";
+    });
+    const end = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const { dy, el: src } = drag; drag = null;
+      sheet.classList.remove("dragging");
+      sheet.style.transform = "";
+      if (dy > 40) setCollapsed(true);
+      else if (dy < -40) setCollapsed(false);
+      else if (src.id === "handle" && e.type === "pointerup") setCollapsed(!sheet.classList.contains("collapsed"));
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  });
+  $("handle").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCollapsed(!sheet.classList.contains("collapsed")); }
+  });
+
   // keep the map's centre in the visible area above (or beside) the sheet
-  const sheet = document.querySelector(".sheet");
   function fitPadding() {
     const wide = window.matchMedia("(min-width: 900px)").matches;
     const h = sheet.getBoundingClientRect().height;
