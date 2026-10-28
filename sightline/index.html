@@ -180,6 +180,7 @@ html.sheet-drag, html.sheet-drag * { cursor: grabbing !important; }
 }
 .chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
 .chip i { width: 18px; border-top: 2px dashed currentColor; }
+.chip i.sw { width: 14px; height: 10px; border: 0; border-radius: 2px; background: rgba(47, 125, 79, .5); }
 
 /* Sliders */
 .ctl { display: flex; flex-direction: column; gap: 2px; }
@@ -239,6 +240,14 @@ input[type="range"]::-moz-range-thumb {
 #chart .blocked { fill: none; stroke: var(--block); stroke-width: 3; stroke-linecap: round; }
 #chart .clear { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 2; }
 #chart .fz { fill: var(--accent); opacity: .16; }
+#chart .canopy { fill: #5f9a4e; opacity: .55; }
+.source { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+.source.busy::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%;
+  background: var(--accent); vertical-align: 1px; animation: pulse 1s ease-in-out infinite;
+}
+.plan .vis { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--good) 12%, transparent); }
+.plan .vis.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); }
 #chart .tag { fill: var(--ink); font-weight: 500; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
 .stats div { min-width: 0; }
@@ -433,6 +442,7 @@ html.sheet-drag .layerbtn { transition: none; }
       <button type="button" id="uKm" aria-pressed="false">km</button>
     </div>
     <button class="chip hillonly" type="button" id="blockedBtn" aria-pressed="false" hidden><i></i>Hidden</button>
+    <button class="chip hillonly" type="button" id="shadeBtn" aria-pressed="true" hidden><i class="sw"></i>Visible ground</button>
   </div>
 
   <div class="linkpanel" id="linkPanel" hidden>
@@ -491,10 +501,13 @@ html.sheet-drag .layerbtn { transition: none; }
       <span id="gridNote"></span>
     </p>
     <p class="note">
-      <b>Link</b> looks for high ground within walking distance of each of you, then checks every pair of spots. Radio needs more room than sight: for a strong signal the line should clear 60% of the first <b>Fresnel zone</b>, the football-shaped space around it. At 446 MHz over 8 km that's about 22 m at the midpoint. Radio uses the standard 4/3 Earth radius for bending. <b>Clear</b> means the full zone is free; <b>sight line only</b> means you can see each other but the zone is partly blocked, so radio may be weak. 2 m radio often works with less clearance than this. Walking distances are as the crow flies, so check paths and access on the Topo map before setting off, and do a test call.
+      <b>Link</b> looks for high ground within walking distance of each of you, then checks every pair of spots. Radio needs more room than sight: for a strong signal the line should clear 60% of the first <b>Fresnel zone</b>, the football-shaped space around it. At 446 MHz over 8 km that's about 22 m at the midpoint. Radio uses the standard 4/3 Earth radius for bending. <b>Clear</b> means the full zone is free; <b>sight line only</b> means you can see each other but the zone is partly blocked, so radio may be weak. 2 m radio often works with less clearance than this. Walking distances are as the crow flies, with times by Naismith's rule (5 km/h plus a minute per 10 m of climb), so check paths and access on the Topo map before setting off, and do a test call.
+    </p>
+    <p class="note">
+      In England, every line Link suggests is then re-checked against the Environment Agency's <b>1 m LIDAR</b> surface, sampled every 10 m, which includes trees, hedges and buildings. The first 25 m at each end is skipped so a roof or tree you can step out from doesn't count. Anything those block is moved down the list. Elsewhere the check is bare ground only. Shading is worked out on the 30 m terrain. For torch, flag or mirror, the visibility forecast comes from Open-Meteo.
     </p>
   </details>
-  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. Maps and hill names: © OpenStreetMap contributors, OpenTopoMap (CC-BY-SA). Relief and imagery: © Esri.</p>
+  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. LIDAR: © Environment Agency copyright and/or database right 2022. Weather: Open-Meteo.com (CC BY 4.0). Maps and hill names: © OpenStreetMap contributors, OpenTopoMap (CC-BY-SA). Relief and imagery: © Esri.</p>
   </div></div>
 </section>
 
@@ -523,6 +536,8 @@ self.onmessage = (ev) => {
     else if (type === "all") out = allPairs(p);
     else if (type === "profile") out = profile(p);
     else if (type === "link") out = linkSearch(p);
+    else if (type === "vsAll") out = viewshedAll(p);
+    else if (type === "vsDisc") out = viewshedDisc(p);
     self.postMessage({ id, ok: true, out });
   } catch (err) {
     self.postMessage({ id, ok: false, err: String(err && err.message || err) });
@@ -668,7 +683,7 @@ function linkSearch(p) {
   const sep = Math.max(3, p.rpx * 0.3), picks = [];
   for (const o of ok) {
     if (picks.some((q) => Math.hypot(q.a.x - o.a.x, q.a.y - o.a.y) < sep && Math.hypot(q.b.x - o.b.x, q.b.y - o.b.y) < sep)) continue;
-    picks.push(o); if (picks.length >= 5) break;
+    picks.push(o); if (picks.length >= (p.max || 5)) break;
   }
   return { ha, hb, D0, direct: { clear: d0[0], at: d0[1], clear0: d0[2] }, sugg: picks, nA: CA.length, nB: CB.length };
 }
@@ -729,6 +744,47 @@ function profile(p) {
   if (midC === Infinity) { midC = r[0]; midT = r[1]; }
   return { D, ah, bh, za, zb, minC: r[0], minT: r[1], min0: r[2], midC, midT, d, g, fz, fMid: fk ? fk * D / 2 : 0 };
 }
+
+// Everything a person standing at the viewpoint could see: one ray to every edge pixel,
+// tracking the steepest angle so far (curvature and refraction included).
+function viewshedAll(p) {
+  const W = G.W, H = G.H, e = G.e, mask = new Uint8Array(W * H);
+  const vx = p.vx, vy = p.vy, z0 = (p.vh == null ? sample(vx, vy) : p.vh) + EYE, tH = EYE;
+  const ray = (bx, by) => {
+    const dx = bx - vx, dy = by - vy, n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)));
+    if (!n) return;
+    const Dt = dist(vx, vy, bx, by);
+    let maxTan = -Infinity;
+    for (let k = 1; k <= n; k++) {
+      const x = Math.round(vx + dx * k / n), y = Math.round(vy + dy * k / n);
+      if (x < 0 || y < 0 || x >= W || y >= H) break;
+      const d = Dt * k / n, he = e[y * W + x] - d * d / (2 * REFF);
+      if ((he + tH - z0) / d >= maxTan) mask[y * W + x] = 1;
+      const tan = (he - z0) / d;
+      if (tan > maxTan) maxTan = tan;
+    }
+  };
+  for (let x = 0; x < W; x++) { ray(x, 0); ray(x, H - 1); }
+  for (let y = 0; y < H; y++) { ray(0, y); ray(W - 1, y); }
+  return mask;
+}
+
+// For each cell in a disc, can someone there reach the target? 2 = clear, 1 = sight line only.
+function viewshedDisc(p) {
+  const f = p.f || 0, reff = f > 0 ? R * 4 / 3 : REFF, H = p.H;
+  const step = p.step, n = Math.max(1, Math.floor(p.rpx / step)), size = 2 * n + 1;
+  const mask = new Uint8Array(size * size), zt = p.th + H;
+  for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+    if (i * i + j * j > n * n) continue;
+    const x = p.cx + i * step, y = p.cy + j * step;
+    if (x < 0 || y < 0 || x > G.W - 1 || y > G.H - 1) continue;
+    const k = (j + n) * size + (i + n);
+    if (Math.hypot(p.tx - x, p.ty - y) < 3) { mask[k] = 2; continue; }
+    const r = los(x, y, sample(x, y) + H, p.tx, p.ty, zt, dist(x, y, p.tx, p.ty), false, f, reff);
+    mask[k] = r[2] < 3 ? 0 : r[0] >= 3 ? 2 : 1;
+  }
+  return { mask, size, n, step };
+}
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/ol@10.9.0/dist/ol.js"></script>
@@ -753,6 +809,7 @@ function profile(p) {
   let minH = pref.get("minH", 50);
   let minP = pref.get("minP", 10);
   let showBlocked = pref.get("blocked", false);
+  let showShade = pref.get("shade", true);
   let mode = "all";
   let viewpoint = null;    // { coord, name, hill }
   let hillsAll = [];       // { x, y, h, prom, coord, name }
@@ -838,10 +895,11 @@ function profile(p) {
   const linkLayer = new ol.layer.Vector({ source: linkSrc, visible: false });
   const pinLayer = new ol.layer.Vector({ source: pinSrc, visible: false });
   const HILL_LAYERS = [linesLayer, chevLayer, hillLayer, labelLayer, vpLayer];
+  const shadeLayer = new ol.layer.Image({ opacity: 1 });
 
   const map = new ol.Map({
     target: "map",
-    layers: [...BG.topo, ...BG.streets, ...BG.relief, ...BG.satellite, places, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer, linkLayer, pinLayer],
+    layers: [...BG.topo, ...BG.streets, ...BG.relief, ...BG.satellite, places, shadeLayer, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer, linkLayer, pinLayer],
     controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attributionOptions: { collapsible: false } }),
     view: new ol.View({ center: ol.proj.fromLonLat([START.lon, START.lat]), zoom: START.zoom, minZoom: 6, maxZoom: 16, enableRotation: false })
   });
@@ -1033,6 +1091,42 @@ function profile(p) {
     }
     setStatus("");
     render();
+    shadeFrom();
+  }
+
+  // ---- viewshed shading ----
+  // paint a mask (grid-pixel block at `step` spacing) onto the map as a translucent image
+  function paintMasks(blocks, colours) {
+    if (!blocks.length) { shadeLayer.setSource(null); return; }
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    const step = blocks[0].step;
+    blocks.forEach((k) => { l = Math.min(l, k.px0); t = Math.min(t, k.py0); r = Math.max(r, k.px0 + (k.w - 1) * step); b = Math.max(b, k.py0 + (k.h - 1) * step); });
+    const w = Math.round((r - l) / step) + 1, h = Math.round((b - t) / step) + 1;
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d"), img = ctx.createImageData(w, h);
+    blocks.forEach((k) => {
+      const ox = Math.round((k.px0 - l) / step), oy = Math.round((k.py0 - t) / step);
+      for (let y = 0; y < k.h; y++) for (let x = 0; x < k.w; x++) {
+        const v = k.mask[y * k.w + x]; if (!v) continue;
+        const o = ((oy + y) * w + ox + x) * 4, c = colours[v];
+        if (img.data[o + 3] && v < 2) continue; // keep the stronger colour where blocks overlap
+        img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = c[3];
+      }
+    });
+    ctx.putImageData(img, 0, 0);
+    const gxL = grid.gx0 + l - step / 2 + .5, gyT = grid.gy0 + t - step / 2 + .5;
+    const X = (g) => (g / grid.world - .5) * C, Y = (g) => (.5 - g / grid.world) * C;
+    const extent = [X(gxL), Y(gyT + h * step), X(gxL + w * step), Y(gyT)];
+    shadeLayer.setSource(new ol.source.ImageStatic({ url: cv.toDataURL(), imageExtent: extent, interpolate: step > 1 }));
+  }
+  let shadeId = 0;
+  async function shadeFrom() {
+    const id = ++shadeId;
+    if (mode !== "from" || !viewpoint || !showShade || !grid || !inGrid(viewpoint.coord)) { if (mode !== "link") shadeLayer.setSource(null); return; }
+    const vp = mapToPx(viewpoint.coord);
+    const mask = await call("vsAll", { v: grid.v, vx: vp[0], vy: vp[1], vh: viewpoint.hill ? viewpoint.hill.h : null });
+    if (id !== shadeId || !mask || mode !== "from") return;
+    paintMasks([{ mask, w: grid.W, h: grid.H, px0: 0, py0: 0, step: 1 }], { 1: [47, 125, 79, 78] });
   }
 
   const vpPoint = () => ({ view: true, coord: viewpoint.coord, h: viewpoint.hill ? viewpoint.hill.h : viewpoint.h, name: viewpoint.name, hill: viewpoint.hill });
@@ -1101,6 +1195,8 @@ function profile(p) {
     $("modeFrom").setAttribute("aria-pressed", mode === "from");
     $("modeLink").setAttribute("aria-pressed", mode === "link");
     $("blockedBtn").hidden = mode !== "from";
+    $("shadeBtn").hidden = mode !== "from";
+    $("shadeBtn").setAttribute("aria-pressed", showShade);
     $("blockedBtn").setAttribute("aria-pressed", showBlocked);
     $("uMi").setAttribute("aria-pressed", units === "mi");
     $("uKm").setAttribute("aria-pressed", units === "km");
@@ -1212,7 +1308,7 @@ function profile(p) {
     const m = { l: 40, r: 8, t: 12, b: 22 };
     const iw = Wd - m.l - m.r, ih = Hd - m.t - m.b;
     let lo = Infinity, hi = -Infinity;
-    for (let i = 0; i < r.g.length; i++) { lo = Math.min(lo, r.g[i]); hi = Math.max(hi, r.g[i]); }
+    for (let i = 0; i < r.g.length; i++) { lo = Math.min(lo, r.g[i]); hi = Math.max(hi, r.g[i], r.surf ? r.surf[i] : -Infinity); }
     hi = Math.max(hi, r.za, r.zb); lo = Math.min(lo, r.za, r.zb);
     const pad = Math.max(5, (hi - lo) * .12); lo = Math.max(0, lo - pad); hi += pad;
     const X = (d) => m.l + d / r.D * iw, Y = (h) => m.t + (1 - (h - lo) / (hi - lo)) * ih;
@@ -1236,6 +1332,13 @@ function profile(p) {
     let edge = "";
     for (let i = 0; i < r.d.length; i++) edge += (i ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1);
     s += '<path class="ground-edge" d="' + edge + '"/>';
+    // LIDAR: trees and buildings standing on the ground
+    if (r.surf) {
+      let top = "", base = "";
+      for (let i = 0; i < r.d.length; i++) top += (i ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(Math.max(r.surf[i], r.g[i])).toFixed(1);
+      for (let i = r.d.length - 1; i >= 0; i--) base += "L" + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1);
+      s += '<path class="canopy" d="' + top + base + 'Z"/>';
+    }
     // radio: 60% of the first Fresnel zone around the line
     if (r.fz) {
       let up = "", dn = "";
@@ -1252,8 +1355,8 @@ function profile(p) {
     // stretches where ground rises into the sight line (or the radio zone)
     let blk = "", on = false;
     for (let i = 0; i < r.d.length; i++) {
-      const t = r.d[i] / r.D, line = r.za + (r.zb - r.za) * t - fzAt(i);
-      if (r.g[i] > line && t > .01 && t < .99) { blk += (on ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1); on = true; } else on = false;
+      const t = r.d[i] / r.D, line = r.za + (r.zb - r.za) * t - fzAt(i), obs = r.surf ? Math.max(r.surf[i], r.g[i]) : r.g[i];
+      if (obs > line && t > .01 && t < .99) { blk += (on ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(obs).toFixed(1); on = true; } else on = false;
     }
     if (blk) s += '<path class="blocked" d="' + blk + '"/>';
     s += '<line x1="' + X(0) + '" y1="' + Y(r.za).toFixed(1) + '" x2="' + X(r.D) + '" y2="' + Y(r.zb).toFixed(1) + '" stroke="' + color + '" stroke-width="2.5"' + (visible ? "" : ' stroke-dasharray="6 5"') + "/>";
@@ -1273,6 +1376,18 @@ function profile(p) {
 
   // ---- OS grid references: WGS84 -> OSGB36 (Helmert) -> National Grid (Transverse Mercator) ----
   function osGridRef(lon, lat) {
+    const g = toOSGB(lon, lat); if (!g) return null;
+    const { E, N } = g;
+    const e100k = Math.floor(E / 100000), n100k = Math.floor(N / 100000);
+    if (e100k < 0 || e100k > 6 || n100k < 0 || n100k > 12) return null;
+    let l1 = (19 - n100k) - (19 - n100k) % 5 + Math.floor((e100k + 10) / 5);
+    let l2 = (19 - n100k) * 5 % 25 + e100k % 5;
+    if (l1 > 7) l1++; if (l2 > 7) l2++;
+    const pad = (v) => String(Math.floor((v % 100000) / 100)).padStart(3, "0");
+    return String.fromCharCode(65 + l1, 65 + l2) + " " + pad(E) + " " + pad(N);
+  }
+  // WGS84 lon/lat to OSGB36 National Grid easting/northing (Helmert + Transverse Mercator, about 5 m)
+  function toOSGB(lon, lat) {
     const rad = Math.PI / 180;
     let a = 6378137, b = 6356752.314245, e2 = 1 - (b * b) / (a * a);
     let phi = lat * rad, lam = lon * rad;
@@ -1302,13 +1417,7 @@ function profile(p) {
     const dl = lam - lam0;
     const N = I + II * dl ** 2 + III * dl ** 4 + IIIA * dl ** 6;
     const E = E0 + IV * dl + V * dl ** 3 + VI * dl ** 5;
-    const e100k = Math.floor(E / 100000), n100k = Math.floor(N / 100000);
-    if (e100k < 0 || e100k > 6 || n100k < 0 || n100k > 12) return null;
-    let l1 = (19 - n100k) - (19 - n100k) % 5 + Math.floor((e100k + 10) / 5);
-    let l2 = (19 - n100k) * 5 % 25 + e100k % 5;
-    if (l1 > 7) l1++; if (l2 > 7) l2++;
-    const pad = (v) => String(Math.floor((v % 100000) / 100)).padStart(3, "0");
-    return String.fromCharCode(65 + l1, 65 + l2) + " " + pad(E) + " " + pad(N);
+    return { E, N };
   }
   window.__osGridRef = osGridRef;
   const inGB = (lon, lat) => lat > 49.8 && lat < 60.9 && lon > -8.2 && lon < 1.9 && !(lat > 53.9 && lat < 55.4 && lon < -5.4);
@@ -1376,6 +1485,7 @@ function profile(p) {
 
   // ---- guided flow: 1 you, 2 them, 3 signal, then the answer ----
   let linkStep = "A", sigChosen = false, busyLink = false, linkError = "", usedWalk = walkR;
+  let lidarState = "", visInfo = null;
   const SIG_OPTS = [
     { f: 0, name: "Torch, flag or mirror", short: "Torch or flag", note: "You just need to see each other" },
     { f: 0.446, name: "Walkie-talkies", short: "Walkie-talkies", note: "PMR446, the licence-free kind" },
@@ -1389,6 +1499,7 @@ function profile(p) {
     linkStep = s;
     if (s === "A" || s === "B") collapseSheet();
     renderFlow(); renderLink(); updateSearchHint();
+    if (s !== "result") { shadeLayer.setSource(null); clearShareUrl(); }
   }
   function updateSearchHint() {
     const pick = mode === "link" && (linkStep === "A" || linkStep === "B");
@@ -1429,6 +1540,10 @@ function profile(p) {
   function fitTo(pts) {
     map.getView().fit(ol.extent.boundingExtent(pts), { duration: 550, maxZoom: 14, padding: [28, 32, 28, 32] });
   }
+  function frameSel() {
+    const s = linkRes && linkSel >= 0 ? linkRes.sugg[linkSel] : null;
+    frame(s ? [linkA, linkB, s.a.coord, s.b.coord] : [linkA, linkB]);
+  }
   function linkExtent() {
     const lat = ol.proj.toLonLat(linkA)[1] * Math.PI / 180;
     return ol.extent.buffer(ol.extent.boundingExtent([linkA, linkB]), (maxWalk() * 1.2 + 600) / Math.cos(lat));
@@ -1439,20 +1554,28 @@ function profile(p) {
     return inGrid([e[0], e[1]]) && inGrid([e[2], e[3]]);
   }
 
+  // final verdict: LIDAR when we have it, otherwise the 30 m terrain check
+  const finalOf = (s) => (s.lidar ? s.lidar.status : s.tier ? "marginal" : "clear");
+  function pickBest() {
+    const R = linkRes;
+    const firstClear = R.sugg.findIndex((s) => s.final === "clear");
+    linkSel = R.final === "clear" ? -1 : firstClear >= 0 ? firstClear : R.final === "marginal" ? -1 : R.sugg.findIndex((s) => s.final !== "blocked");
+  }
+
   async function computeLink() {
     renderLink(); renderSuggList(); renderFlow();
     if (mode !== "link" || linkStep !== "result" || !linkA || !linkB) return;
     linkError = "";
     if (!linkCovered()) { busyLink = true; renderFlow(); scan(linkExtent()); return; }
     const id = ++losId;
-    busyLink = true; renderFlow();
+    busyLink = true; lidarState = ""; visInfo = null; renderFlow();
     const pa = mapToPx(linkA), pb = mapToPx(linkB);
     const spot = (c) => ({ coord: pxToMap(c.x, c.y), h: c.h, walk: c.walk, home: c.home, name: null });
     // start at the chosen walking distance and widen it if nothing fully works
     const radii = WALKS[units].filter((w) => w >= walkR - 1);
     let res = null, used = walkR;
     for (const r of radii) {
-      const out = await call("link", { v: grid.v, ax: pa[0], ay: pa[1], bx: pb[0], by: pb[1], H: antH, f: sigF, rpx: r / grid.mPerPx, n: 70 });
+      const out = await call("link", { v: grid.v, ax: pa[0], ay: pa[1], bx: pb[0], by: pb[1], H: antH, f: sigF, rpx: r / grid.mPerPx, n: 70, max: 12 });
       if (id !== losId || !out || mode !== "link") return;
       out.sugg = out.sugg.map((s) => Object.assign({}, s, { a: spot(s.a), b: spot(s.b) }));
       out.status = out.direct.clear0 < 0 ? "blocked" : out.direct.clear >= 3 ? "clear" : "marginal";
@@ -1460,19 +1583,215 @@ function profile(p) {
       if (!res || good || (!res.sugg.length && out.sugg.length)) { res = out; used = r; }
       if (good) break;
     }
+    res.all = res.sugg;
+    res.all.forEach((s) => { s.final = finalOf(s); });
+    res.sugg = res.all.slice(0, 5);
+    res.final = res.status;
     linkRes = res; usedWalk = used; busyLink = false;
     nameLinkSpots();
-    linkSel = res.status === "clear" || !res.sugg.length ? -1 : 0;
+    pickBest();
     setStatus("");
     renderLink(); renderSuggList(); renderFlow();
-    expandSheet();
-    const best = linkSel >= 0 ? res.sugg[0] : null;
-    frame(best ? [linkA, linkB, best.a.coord, best.b.coord] : [linkA, linkB]);
+    expandSheet(); frameSel();
+    updateShareUrl(); fetchVisibility(); shadeLink();
+    verifyLink();
   }
   function nameLinkSpots() {
     if (!linkRes || !grid) return;
     const maxD = Math.max(250, grid.mPerPx * 3);
-    linkRes.sugg.forEach((s) => [s.a, s.b].forEach((sp) => { if (!sp.home) sp.name = nameNear(sp.coord, maxD); }));
+    linkRes.all.forEach((s) => [s.a, s.b].forEach((sp) => { if (!sp.home) sp.name = nameNear(sp.coord, maxD); }));
+  }
+
+  // ---- Environment Agency 1 m LIDAR: ground, trees and buildings (England) ----
+  const EA = { base: "https://environment.data.gov.uk/image/rest/services/SURVEY", dsm: null, dtm: null, tried: null };
+  function eaDiscover() {
+    if (EA.tried) return EA.tried;
+    EA.tried = (async () => {
+      try {
+        const r = await fetch(EA.base + "?f=json");
+        const j = await r.json();
+        const names = (j.services || []).filter((x) => x.type === "ImageServer").map((x) => x.name.split("/").pop());
+        const score = (n) => (parseInt((n.match(/20\d\d/) || ["0"])[0], 10) * 10) + (/_1m_/i.test(n) ? 3 : /_2m_/i.test(n) ? 2 : 0) + (/First_Return/i.test(n) ? 1 : 0);
+        const best = (re) => names.filter((n) => re.test(n)).sort((a, b) => score(b) - score(a))[0] || null;
+        EA.dsm = best(/DSM.*Elevation$/i);   // first return: top of trees and roofs
+        EA.dtm = best(/DTM.*Elevation$/i);   // bare ground, for where you stand
+        return !!EA.dsm;
+      } catch (e) { return false; }
+    })();
+    return EA.tried;
+  }
+  async function eaSamples(service, pts) {
+    const out = new Float32Array(pts.length).fill(NaN);
+    for (let i = 0; i < pts.length; i += 400) {
+      const chunk = pts.slice(i, i + 400);
+      const body = new URLSearchParams({
+        geometry: JSON.stringify({ points: chunk.map((p) => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]), spatialReference: { wkid: 27700 } }),
+        geometryType: "esriGeometryMultipoint", returnFirstValueOnly: "true", interpolation: "RSP_BilinearInterpolation", f: "json"
+      });
+      const r = await fetch(EA.base + "/" + service + "/ImageServer/getSamples", { method: "POST", body });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error.message || "LIDAR error");
+      (j.samples || []).forEach((smp) => { const v = parseFloat(smp.value); if (isFinite(v) && v > -100) out[i + smp.locationId] = v; });
+    }
+    return out;
+  }
+  const mayHaveLidar = (c) => { const [lon, lat] = ol.proj.toLonLat(c); return lat > 49.85 && lat < 55.85 && lon > -6.5 && lon < 1.8; };
+  // samples every ~10 m along the line; ground only at the ends unless asked for the whole line
+  async function lidarLine(A, B, withGround) {
+    const D = groundDist(A.coord, B.coord);
+    const n = Math.min(1500, Math.max(40, Math.ceil(D / 10)));
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, c = [A.coord[0] + (B.coord[0] - A.coord[0]) * t, A.coord[1] + (B.coord[1] - A.coord[1]) * t];
+      const [lon, lat] = ol.proj.toLonLat(c), g = toOSGB(lon, lat); pts.push([g.E, g.N]);
+    }
+    const [dsm, ends, ground] = await Promise.all([
+      eaSamples(EA.dsm, pts),
+      EA.dtm ? eaSamples(EA.dtm, [pts[0], pts[n]]) : Promise.resolve(null),
+      withGround && EA.dtm ? eaSamples(EA.dtm, pts) : Promise.resolve(null)
+    ]);
+    return { D, n, dsm, ends, ground };
+  }
+  function evalLidar(L, ha, hb) {
+    const { D, n, dsm } = L;
+    let valid = 0;
+    for (let i = 0; i <= n; i++) if (isFinite(dsm[i])) valid++;
+    if (valid < (n + 1) * 0.85) return null; // outside LIDAR coverage
+    const ga = L.ends && isFinite(L.ends[0]) ? L.ends[0] : ha, gb = L.ends && isFinite(L.ends[1]) ? L.ends[1] : hb;
+    const reff = sigF > 0 ? 6371008.8 * 4 / 3 : REFF, za = ga + antH, zb = gb + antH;
+    const fk = sigF > 0 ? 0.6 * 17.32 / Math.sqrt(sigF * D / 1000) / 1000 : 0;
+    let minC = Infinity, minT = 0.5, min0 = Infinity;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, d = t * D, v = dsm[i];
+      if (d < 25 || D - d < 25 || !isFinite(v)) continue; // you can step out from under your own roof or tree
+      const c0 = za + (zb - za) * t - (v + d * (D - d) / (2 * reff));
+      const c = c0 - (fk ? fk * Math.sqrt(d * (D - d)) : 0);
+      if (c < minC) { minC = c; minT = t; }
+      if (c0 < min0) min0 = c0;
+    }
+    if (minC === Infinity) { minC = 0; min0 = 0; }
+    return { status: min0 < 0 ? "blocked" : minC >= 1.5 ? "clear" : "marginal", minC, min0, minT, D, za, zb, ga, gb, L };
+  }
+  let lidarRun = 0;
+  async function verifyLink() {
+    const R = linkRes, run = ++lidarRun; if (!R) return;
+    if (!mayHaveLidar(linkA) && !mayHaveLidar(linkB)) { lidarState = "area"; renderFlow(); return; }
+    lidarState = "checking"; renderFlow();
+    const ok = await eaDiscover();
+    if (run !== lidarRun || R !== linkRes) return;
+    if (!ok) { lidarState = "unavailable"; renderFlow(); return; }
+    try {
+      const d = evalLidar(await lidarLine({ coord: linkA }, { coord: linkB }, false), R.ha, R.hb);
+      if (run !== lidarRun || R !== linkRes) return;
+      if (d) { R.direct.lidar = d; R.final = d.status; }
+      const passed = [], failed = [], checked = new Set();
+      for (const s of R.all) {
+        if (passed.length >= 5) break;
+        const r = evalLidar(await lidarLine(s.a, s.b, false), s.a.h, s.b.h);
+        if (run !== lidarRun || R !== linkRes) return;
+        checked.add(s);
+        if (r) { s.lidar = r; s.final = r.status; }
+        (s.final === "blocked" ? failed : passed).push(s);
+      }
+      const rank = (s) => (s.final === "clear" ? 0 : 1);
+      passed.sort((u, v) => rank(u) - rank(v));
+      const rest = R.all.filter((s) => !checked.has(s));
+      R.sugg = passed.concat(rest).slice(0, 5);
+      if (R.sugg.length < 5) R.sugg = R.sugg.concat(failed.slice(0, 5 - R.sugg.length));
+      R.lidarOut = failed.filter((s) => s.lidar && s.lidar.status === "blocked").length;
+      lidarState = d || passed.some((s) => s.lidar) ? "done" : "area";
+    } catch (e) { lidarState = "unavailable"; }
+    if (run !== lidarRun || R !== linkRes) return;
+    pickBest();
+    renderLink(); renderSuggList(); renderFlow(); frameSel(); shadeLink(); updateShareUrl();
+  }
+
+  // ---- shading: other places in walking range that can reach the far end ----
+  async function shadeLink() {
+    const id = ++shadeId;
+    if (mode !== "link" || linkStep !== "result" || !linkRes || !grid) { shadeLayer.setSource(null); return; }
+    const s = linkSel >= 0 ? linkRes.sugg[linkSel] : null;
+    const ends = [
+      { home: linkA, target: s ? s.b : { coord: linkB, h: linkRes.hb } },
+      { home: linkB, target: s ? s.a : { coord: linkA, h: linkRes.ha } }
+    ];
+    const rpx = usedWalk / grid.mPerPx, step = Math.max(1, Math.ceil(rpx / 70));
+    const blocks = [];
+    for (const e of ends) {
+      const c = mapToPx(e.home), t = mapToPx(e.target.coord);
+      const out = await call("vsDisc", { v: grid.v, cx: c[0], cy: c[1], rpx, step, tx: t[0], ty: t[1], th: e.target.h, H: antH, f: sigF });
+      if (id !== shadeId || !out) return;
+      blocks.push({ mask: out.mask, w: out.size, h: out.size, px0: c[0] - out.n * step, py0: c[1] - out.n * step, step });
+    }
+    if (id !== shadeId || mode !== "link") return;
+    paintMasks(blocks, { 1: [201, 138, 26, 90], 2: [47, 125, 79, 105] });
+  }
+
+  // ---- visibility forecast (Open-Meteo) for torch, flag or mirror ----
+  async function fetchVisibility() {
+    visInfo = null;
+    const R = linkRes;
+    if (sigF !== 0 || !linkA || !linkB) return;
+    const [lon, lat] = ol.proj.toLonLat([(linkA[0] + linkB[0]) / 2, (linkA[1] + linkB[1]) / 2]);
+    try {
+      const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + lat.toFixed(3) + "&longitude=" + lon.toFixed(3) + "&hourly=visibility&forecast_days=2&timezone=auto");
+      const j = await r.json();
+      if (R !== linkRes || !j.hourly) return;
+      const t = j.hourly.time, v = j.hourly.visibility, now = Date.now();
+      const i0 = t.findIndex((x) => new Date(x).getTime() + 3600e3 > now);
+      if (i0 < 0) return;
+      const next = [];
+      for (let i = i0; i < Math.min(t.length, i0 + 24); i++) if (v[i] != null) next.push({ t: t[i], v: v[i] });
+      if (!next.length) return;
+      visInfo = { now: next[0].v, best: next.reduce((m, x) => (x.v > m.v ? x : m), next[0]) };
+      renderFlow();
+    } catch (e) { /* forecast is optional */ }
+  }
+  function whenLabel(iso) {
+    const d = new Date(iso), today = new Date();
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.getDate() === today.getDate() ? time : "tomorrow " + time;
+  }
+
+  // ---- share link: both pins and the signal in the address; the friend sees it from their side ----
+  function shareUrl(forThem) {
+    const ll = (c) => ol.proj.toLonLat(c).reverse().map((v) => v.toFixed(5)).join(",");
+    const q = new URLSearchParams({ a: ll(linkA), b: ll(linkB), sig: String(sigF), ht: String(antH), walk: String(Math.round(walkR)) });
+    if (forThem) q.set("me", "b");
+    return location.origin + location.pathname + "?" + q.toString();
+  }
+  function updateShareUrl() {
+    if (mode !== "link" || !linkA || !linkB || !sigChosen) return;
+    try { history.replaceState(null, "", shareUrl(false)); } catch (e) {}
+  }
+  function clearShareUrl() { try { if (location.search) history.replaceState(null, "", location.pathname); } catch (e) {} }
+  async function sharePlan(text) {
+    const url = shareUrl(true);
+    if (navigator.share) {
+      try { await navigator.share({ title: "Sightline plan", text, url }); return; }
+      catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    copyText(text + "\n" + url);
+  }
+  function readShareUrl() {
+    const q = new URLSearchParams(location.search);
+    if (!q.get("a") || !q.get("b")) return false;
+    const pt = (s) => { const [lat, lon] = s.split(",").map(Number); return isFinite(lat) && isFinite(lon) ? ol.proj.fromLonLat([lon, lat]) : null; };
+    let a = pt(q.get("a")), b = pt(q.get("b"));
+    if (!a || !b) return false;
+    if (q.get("me") === "b") [a, b] = [b, a];
+    linkA = a; linkB = b;
+    const f = parseFloat(q.get("sig")); if (SIG_OPTS.some((o) => o.f === f)) { sigF = f; sigChosen = true; }
+    const h = parseFloat(q.get("ht")); if ([1.7, 5, 10].includes(h)) antH = h;
+    const w = parseFloat(q.get("walk")); if (w > 0) walkR = w;
+    return true;
+  }
+
+  // Naismith: 5 km/h plus a minute for every 10 m of climb
+  function walkTime(dist, climb) {
+    const min = dist / 1000 / 5 * 60 + Math.max(0, climb) / 10;
+    const r = Math.max(5, Math.round(min / 5) * 5);
+    return r < 60 ? "about " + r + " min" : "about " + Math.floor(r / 60) + " h" + (r % 60 ? " " + (r % 60) + " min" : "");
   }
 
   // label sits on the side of the spot away from the home pin, so the two never collide
@@ -1489,12 +1808,12 @@ function profile(p) {
     if (!linkRes || !linkA || !linkB || linkStep !== "result") return;
     const top = [];
     const direct = new ol.Feature({ geometry: new ol.geom.LineString([linkA, linkB]) });
-    direct.set("link", -1); direct.setStyle(lineFor(linkRes.status, linkSel === -1, false));
+    direct.set("link", -1); direct.setStyle(lineFor(linkRes.final, linkSel === -1, false));
     linkSrc.addFeature(direct);
     linkRes.sugg.forEach((s, i) => {
       const sel = i === linkSel;
       const L = new ol.Feature({ geometry: new ol.geom.LineString([s.a.coord, s.b.coord]) });
-      L.set("link", i); L.setStyle(lineFor(s.tier ? "marginal" : "clear", sel, true));
+      L.set("link", i); L.setStyle(lineFor(s.final, sel, true));
       if (!sel) { linkSrc.addFeature(L); return; }
       top.push(L);
       [[linkA, s.a, "A"], [linkB, s.b, "B"]].forEach(([home, sp, who]) => {
@@ -1518,9 +1837,8 @@ function profile(p) {
     [["A", "You", !!linkA], ["B", "Them", !!linkB], ["sig", sigChosen ? sigShort() : "Signal", sigChosen]].forEach(([k, label, done], i) => {
       const b = h("button", "stepchip" + (linkStep === k ? " on" : "") + (done ? " done" : ""));
       b.type = "button";
-      const n = h("span", "n", String(i + 1)); b.append(n, label);
-      const reachable = k === "A" || (k === "B" && linkA) || (k === "sig" && linkA && linkB);
-      b.disabled = !reachable;
+      b.append(h("span", "n", String(i + 1)), label);
+      b.disabled = !(k === "A" || (k === "B" && linkA) || (k === "sig" && linkA && linkB));
       b.setAttribute("aria-current", linkStep === k ? "step" : "false");
       b.addEventListener("click", () => goStep(k));
       steps.appendChild(b);
@@ -1556,36 +1874,49 @@ function profile(p) {
     if (linkError) { el.appendChild(h("h2", "ask", "Couldn't check this")); el.appendChild(h("p", "hint", linkError)); return; }
     if (busyLink || !linkRes) { el.appendChild(h("h2", "ask busy", "Checking the ground between you…")); return; }
     const R = linkRes, radio = sigF > 0, s = linkSel >= 0 ? R.sugg[linkSel] : null;
-    const tone = R.status === "clear" ? "ok" : (R.status === "marginal" || R.sugg.length) ? "warn" : "no";
-    const head = R.status === "clear" ? "You can reach each other from where you are"
-      : R.status === "marginal" ? (radio ? "You can see each other, but radio may be weak" : "You can only just see each other")
-      : !R.sugg.length ? "No easy way found"
-      : R.sugg.some((x) => !x.tier) ? "Not from where you are, but there's a way"
-      : "Only a weak radio link is possible nearby";
-    const a = h("h2", "ask answer " + tone, head); el.appendChild(a);
+    const anyClear = R.sugg.some((x) => x.final === "clear"), anyOk = R.sugg.some((x) => x.final !== "blocked");
+    const tone = R.final === "clear" ? "ok" : (R.final === "marginal" || anyOk) ? "warn" : "no";
+    const head = R.final === "clear" ? "You can reach each other from where you are"
+      : R.final === "marginal" ? (radio ? "You can see each other, but radio may be weak" : "You can only just see each other")
+      : anyClear ? "Not from where you are, but there's a way"
+      : anyOk ? (radio ? "Only a weak radio link is possible nearby" : "Only a marginal view is possible nearby")
+      : "No easy way found";
+    el.appendChild(h("h2", "ask answer " + tone, head));
 
     const plan = h("div", "plan");
+    const lidarNote = (x) => x && x.lidar ? (x.lidar.status === "blocked" ? "Trees or buildings are in the way." : "") : "";
     if (!s) {
-      if (R.status === "blocked") {
-        plan.appendChild(h("p", null, "Nothing within " + fmtWalk(usedWalk) + " of you both links up."));
+      if (R.final === "blocked") {
+        plan.appendChild(h("p", null, (R.direct.lidar && R.status !== "blocked" ? "Trees or buildings block the direct line. " : "") + "Nothing within " + fmtWalk(usedWalk) + " of you both links up."));
       } else {
-        plan.appendChild(h("p", null, "No need to move. You're " + fmtD(R.D0) + " apart" + (R.status === "clear" ? " with a clear " + (radio ? "radio path." : "line of sight.") : ".")));
+        plan.appendChild(h("p", null, "No need to move. You're " + fmtD(R.D0) + " apart" + (R.final === "clear" ? " with a clear " + (radio ? "radio path." : "line of sight.") : ".")));
       }
     } else {
-      const label = linkSel === 0 ? "Best plan" : "Option " + (linkSel + 1);
-      plan.appendChild(h("div", "label", label + (usedWalk > walkR + 1 ? " · up to " + fmtWalk(usedWalk) + " walk" : "")));
-      const line = (who, sp, home) => {
+      const label = (linkSel === 0 ? "Best plan" : "Option " + (linkSel + 1)) + (usedWalk > walkR + 1 ? " · up to " + fmtWalk(usedWalk) + " walk" : "");
+      plan.appendChild(h("div", "label", label));
+      const line = (who, sp, home, homeH) => {
         const p = h("p");
         if (sp.home) { p.textContent = who === "A" ? "You stay where you are." : "They stay where they are."; return p; }
         const b = h("b", null, (who === "A" ? "You walk " : "They walk ") + fmtD(sp.walk) + " " + compass(home, sp.coord));
         p.append(b, (sp.name ? " to " + sp.name : " to higher ground") + ", " + fmtH(sp.h) + ".");
-        p.appendChild(h("small", null, placeLabel(sp.coord)));
+        const climb = sp.h - homeH;
+        p.appendChild(h("small", null, placeLabel(sp.coord) + " · " + walkTime(sp.walk, climb) + (climb > 5 ? ", " + Math.round(climb) + " m up" : "")));
         return p;
       };
-      plan.append(line("A", s.a, linkA), line("B", s.b, linkB));
-      plan.appendChild(h("p", "tail", s.tier
-        ? "From there you can see each other, " + fmtD(s.D) + " apart, but the radio path is partly blocked, so the signal may be weak."
-        : "From there you'll have a clear " + (radio ? "radio path" : "line of sight") + ", " + fmtD(s.D) + " apart."));
+      plan.append(line("A", s.a, linkA, R.ha), line("B", s.b, linkB, R.hb));
+      plan.appendChild(h("p", "tail", s.final === "clear"
+        ? "From there you'll have a clear " + (radio ? "radio path" : "line of sight") + ", " + fmtD(s.D) + " apart."
+        : s.final === "marginal"
+          ? "From there you can see each other, " + fmtD(s.D) + " apart, but " + (radio ? "the radio path is partly blocked, so the signal may be weak." : "only just.")
+          : lidarNote(s) || "This one is blocked."));
+    }
+    // visibility forecast for visual signalling
+    if (!radio && visInfo) {
+      const D = s ? s.D : R.D0, ok = visInfo.now >= D * 1.3;
+      const km = (m) => (m >= 10000 ? Math.round(m / 1000) : (m / 1000).toFixed(1)) + " km";
+      plan.appendChild(h("p", "vis " + (ok ? "ok" : "warn"), ok
+        ? "Visibility forecast " + km(visInfo.now) + " now, enough for " + fmtD(D) + "."
+        : "Visibility forecast only " + km(visInfo.now) + " now, so haze may hide it. Clearest " + whenLabel(visInfo.best.t) + " (" + km(visInfo.best.v) + ")."));
     }
     el.appendChild(plan);
 
@@ -1596,14 +1927,26 @@ function profile(p) {
       w.href = "https://maps.apple.com/?daddr=" + lat.toFixed(5) + "," + lon.toFixed(5) + "&dirflg=w"; w.target = "_blank"; w.rel = "noopener";
       act.appendChild(w);
     }
-    if (s || R.status !== "blocked") act.appendChild(btn("Copy plan", "", () => copyText(planText(linkSel == null ? -1 : linkSel, { D: s ? s.D : R.D0 }))));
-    act.appendChild(btn("See the ground", "", () => selectLink(linkSel == null ? -1 : linkSel)));
-    if (!s && R.status === "blocked") {
+    const sel = linkSel == null ? -1 : linkSel;
+    if ((s && s.final !== "blocked") || (!s && R.final !== "blocked")) act.appendChild(btn("Send to them", s && !s.a.home ? "" : "primary", () => sharePlan(planText(sel, { D: s ? s.D : R.D0 }))));
+    act.appendChild(btn("See the ground", "", () => selectLink(sel)));
+    if (!anyOk && R.final === "blocked") {
       if (antH < 5) act.appendChild(btn("Try a 5 m pole", "", () => { antH = 5; pref.set("antH", 5); syncLinkControls(); computeLink(); }));
       if (radio) act.appendChild(btn("Try torch or flag", "", () => chooseSig(0)));
     }
     el.appendChild(act);
-    if (R.sugg.length > 1 || (R.sugg.length && R.status !== "blocked")) {
+
+    // what the answer is based on
+    const src = h("p", "source");
+    src.textContent = lidarState === "checking" ? "Checking trees and buildings with 1 m LIDAR…"
+      : lidarState === "done" ? "Checked against 1 m Environment Agency LIDAR, including trees and buildings." + (R.lidarOut ? " " + R.lidarOut + " other option" + (R.lidarOut > 1 ? "s" : "") + " ruled out by trees or buildings." : "")
+      : lidarState === "unavailable" ? "Bare ground only: the LIDAR service didn't respond, so trees and buildings aren't included."
+      : lidarState === "area" ? "Bare ground only: 1 m LIDAR covers England, so trees and buildings aren't included here."
+      : "";
+    if (lidarState === "checking") src.classList.add("busy");
+    if (src.textContent) el.appendChild(src);
+    el.appendChild(h("p", "source", "Shading on the map: other places in walking range that can " + (radio ? "reach" : "see") + " the far spot (green), or only see it (amber)."));
+    if (R.sugg.length > 1 || (R.sugg.length && R.final !== "blocked")) {
       el.appendChild(btn("Other options and settings", "link", () => { expandSheet(); setTimeout(() => $("sheet").scrollTo({ top: $("linkPanel").offsetTop - 8, behavior: "smooth" }), 300); }));
     }
   }
@@ -1632,23 +1975,22 @@ function profile(p) {
     };
     const radio = sigF > 0;
     const pillFor = (kind) => ({ clear: ["ok", "Clear"], marginal: ["warn", radio ? "Weak radio" : "Only just"], blocked: ["no", "Blocked"] })[kind];
-    const dp = pillFor(linkRes.status);
-    item(-1, HOUSE_NUM, "Stay where you both are", [fmtD(linkRes.D0) + " apart"], dp[0], dp[1]);
+    const tag = (x) => (x.lidar ? " · checked with LIDAR" : "");
+    const dp = pillFor(linkRes.final);
+    item(-1, HOUSE_NUM, "Stay where you both are", [fmtD(linkRes.D0) + " apart" + tag(linkRes.direct)], dp[0], dp[1]);
     linkRes.sugg.forEach((s, i) => {
       const title = sideText("You", s.a, linkA) + ", " + sideText("Them", s.b, linkB) + ".";
-      const sub = fmtD(s.D) + " apart · " + (s.tier ? "radio path partly blocked" : fmtH(s.clear) + " to spare");
-      const p = pillFor(s.tier ? "marginal" : "clear");
+      const c = s.lidar ? s.lidar.minC : s.clear;
+      const sub = fmtD(s.D) + " apart · " + (s.final === "blocked" ? "trees or buildings in the way" : s.final === "marginal" ? (radio ? "radio path partly blocked" : "only just clears") : fmtH(Math.max(0, c)) + " to spare") + tag(s);
+      const p = pillFor(s.final);
       item(i, String(i + 1), title, [sub], p[0], p[1]);
     });
   }
 
   function selectLink(i) {
     linkSel = i;
-    renderLink(); renderSuggList(); renderFlow(); expandSheet();
-    // frame the chosen option above (or beside) the sheet
-    const pts = [linkA, linkB];
-    if (i >= 0) pts.push(linkRes.sugg[i].a.coord, linkRes.sugg[i].b.coord);
-    frame(pts);
+    renderLink(); renderSuggList(); renderFlow(); expandSheet(); shadeLink();
+    frameSel();
     linkProfile(i);
   }
 
@@ -1663,7 +2005,7 @@ function profile(p) {
     ].join("\n");
   }
   function copyText(text) {
-    const done = () => toast("Plan copied. Paste it into a message.");
+    const done = () => toast("Copied. Paste it into a message.");
     const fallback = () => {
       const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select();
@@ -1673,38 +2015,68 @@ function profile(p) {
     try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
   }
 
+  // chart data from LIDAR samples: bare ground, plus trees and buildings on top
+  function lidarProfileData(lid, full) {
+    const L = full || lid.L, n = L.n, D = lid.D, radio = sigF > 0;
+    const reff = radio ? 6371008.8 * 4 / 3 : REFF, fk = radio ? 0.6 * 17.32 / Math.sqrt(sigF * D / 1000) / 1000 : 0;
+    const step = Math.max(1, Math.ceil(n / 400)), d = [], g = [], surf = [], fz = fk ? [] : null;
+    for (let i = 0; i <= n; i += step) {
+      const t = i / n, dd = t * D, bulge = dd * (D - dd) / (2 * reff);
+      const sv = L.dsm[i], gv = L.ground && isFinite(L.ground[i]) ? L.ground[i] : sv;
+      if (!isFinite(sv)) continue;
+      d.push(dd); g.push(Math.min(gv, sv) + bulge); surf.push(sv + bulge);
+      if (fz) fz.push(fk * Math.sqrt(dd * (D - dd)));
+    }
+    return { D, za: lid.za, zb: lid.zb, ah: lid.ga, bh: lid.gb, minC: lid.minC, minT: lid.minT, min0: lid.min0, midC: lid.minC, midT: lid.minT,
+      d, g, surf: L.ground ? surf : null, fz, fMid: fk ? fk * D / 2 : 0, lidar: true };
+  }
+
   async function linkProfile(i) {
     if (!linkRes || !grid) return;
     const A = i < 0 ? { coord: linkA, home: true } : linkRes.sugg[i].a, B = i < 0 ? { coord: linkB, home: true } : linkRes.sugg[i].b;
-    const pa = mapToPx(A.coord), pb = mapToPx(B.coord);
-    const r = await call("profile", { v: grid.v, ax: pa[0], ay: pa[1], ah: null, bx: pb[0], by: pb[1], bh: null, f: sigF, H: antH });
+    const lid = i < 0 ? linkRes.direct.lidar : linkRes.sugg[i].lidar;
+    let r = null;
+    if (lid) {
+      if (!lid.full && EA.dtm) {
+        setStatus("Loading the LIDAR profile", true);
+        try { lid.full = await lidarLine(A, B, true); } catch (e) { lid.full = null; }
+        setStatus("");
+      }
+      if (linkSel !== i || mode !== "link") return;
+      r = lidarProfileData(lid, lid.full);
+    } else {
+      const pa = mapToPx(A.coord), pb = mapToPx(B.coord);
+      r = await call("profile", { v: grid.v, ax: pa[0], ay: pa[1], ah: null, bx: pb[0], by: pb[1], bh: null, f: sigF, H: antH });
+    }
     if (!r || linkSel !== i || mode !== "link") return;
     selected = null; selSrc.clear();
-    const radio = sigF > 0;
-    const kind = r.min0 < 0 ? "blocked" : r.minC >= 3 ? "clear" : "marginal";
+    const radio = sigF > 0, margin = r.lidar ? 1.5 : 3;
+    const kind = r.min0 < 0 ? "blocked" : r.minC >= margin ? "clear" : "marginal";
     $("profile").hidden = false;
     $("pTitle").textContent = i < 0 ? "From where you both are" : "Option " + (i + 1);
     $("pSub").innerHTML = "";
     const pill = document.createElement("span");
     pill.className = "pill " + ({ clear: "ok", marginal: "warn", blocked: "no" })[kind];
     pill.textContent = kind === "marginal" && radio ? "Sight line only" : STATUS_WORD[kind];
-    const dd = document.createElement("span"); dd.textContent = fmtD(r.D) + " · " + SIG_NAME[sigF] + " at " + antH + " m";
+    const dd = document.createElement("span"); dd.textContent = fmtD(r.D) + " · " + sigShort() + " at " + antH + " m";
     $("pSub").append(pill, dd);
     const at = (t) => t < 0.04 ? "right next to you" : t > 0.96 ? "right next to them" : fmtD(t * r.D) + " from you";
-    // wording follows the same test as the status pill: 3 m of margin counts as clear
+    const what = r.surf ? "Trees, buildings or ground " : "Ground ";
+    // wording follows the same test as the status pill
     const clearance = kind === "blocked"
-      ? "Ground " + fmtH(Math.max(1, -r.min0)) + " above the line, " + at(r.minT)
+      ? what + fmtH(Math.max(1, -r.min0)) + " above the line, " + at(r.minT)
       : radio
-        ? (kind === "clear" ? fmtH(Math.max(3, r.midC)) + " to spare around the radio zone"
+        ? (kind === "clear" ? fmtH(Math.max(margin, r.midC)) + " to spare around the radio zone"
            : r.minC >= 0 ? "Only just clears the radio zone, " + at(r.minT)
            : "Radio zone " + fmtH(Math.max(1, -r.minC)) + " short, " + at(r.minT))
-        : (kind === "clear" ? "Clears the ground by " + fmtH(Math.max(3, r.midC)) + ", " + at(r.midT) : "Only just clears, " + at(r.minT));
+        : (kind === "clear" ? "Clears by " + fmtH(Math.max(margin, r.midC)) + ", " + at(r.midT) : "Only just clears, " + at(r.minT));
     const angle = Math.atan((r.zb - r.za) / r.D - r.D / (2 * (radio ? 6371008.8 * 4 / 3 : REFF))) * 180 / Math.PI;
     const stats = [
       [kind === "blocked" ? "Blocked" : "Clearance", clearance],
       radio ? ["Radio zone", "Needs " + fmtH(r.fMid) + " clear at the midpoint"] : ["View angle", (angle >= 0 ? "Looking up " : "Looking down ") + Math.abs(angle).toFixed(2) + "°"],
       ["You", (A.home ? "Home, " : placeLabel(A.coord) + ", ") + fmtH(r.ah)],
-      ["Them", (B.home ? "Home, " : placeLabel(B.coord) + ", ") + fmtH(r.bh)]
+      ["Them", (B.home ? "Home, " : placeLabel(B.coord) + ", ") + fmtH(r.bh)],
+      ["Based on", r.lidar ? "1 m LIDAR: ground, trees and buildings" : "30 m terrain: bare ground only"]
     ];
     $("pStats").innerHTML = "";
     stats.forEach(([k, v]) => {
@@ -1720,7 +2092,8 @@ function profile(p) {
     } else walk.hidden = true;
     const copy = $("pCopy");
     copy.hidden = kind === "blocked";
-    copy.onclick = () => copyText(planText(i, r));
+    copy.textContent = "Send to them";
+    copy.onclick = () => sharePlan(planText(i, r));
     chart(r, kind !== "blocked", null, LCOL[kind]);
     const sh = $("sheet");
     sh.scrollTo({ top: Math.max(0, $("profile").offsetTop - 8), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -1740,7 +2113,7 @@ function profile(p) {
       goStep(!linkA ? "A" : !linkB ? "B" : sigChosen ? "result" : "sig");
       computeLink();
     } else {
-      setStatus(""); renderFlow(); updateSearchHint();
+      setStatus(""); renderFlow(); updateSearchHint(); clearShareUrl(); shadeLayer.setSource(null);
       if (grid && grid.forLink) scheduleScan(0); else computeLines();
     }
     renderReadout();
@@ -1798,6 +2171,7 @@ function profile(p) {
     mode = "from"; clearSelection(); computeLines();
   });
   $("blockedBtn").addEventListener("click", () => { showBlocked = !showBlocked; pref.set("blocked", showBlocked); render(); });
+  $("shadeBtn").addEventListener("click", () => { showShade = !showShade; pref.set("shade", showShade); renderReadout(); shadeFrom(); });
   function setUnits(u) {
     units = u; pref.set("units", u);
     if (mode === "link") {
@@ -2074,7 +2448,8 @@ function profile(p) {
 
   syncLinkControls();
   renderReadout();
-  scheduleScan(50);
+  if (readShareUrl()) { syncLinkControls(); setMode("link"); fitLink(); }
+  else scheduleScan(50);
   window.__sightline = {
     state: () => ({ mode, lines: lines.length, visible: lines.filter((l) => l.visible).length, hills: hillsAll.length, shown: shownHills.length, grid, viewpoint: !!viewpoint,
       link: linkRes && { status: linkRes.status, D0: Math.round(linkRes.D0), direct: linkRes.direct, n: [linkRes.nA, linkRes.nB], sugg: linkRes.sugg.map((s) => ({ tier: s.tier, walkA: Math.round(s.a.walk), walkB: Math.round(s.b.walk), clear: +s.clear.toFixed(1), clear0: +s.clear0.toFixed(1), D: Math.round(s.D) })) } }),
@@ -2082,6 +2457,7 @@ function profile(p) {
     lonLatPixel: (lon, lat) => map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, lat])),
     pad: () => map.getView().padding,
     zoom: () => map.getView().getZoom(),
+    shade: () => shadeLayer.getSource(),
     size: () => map.getSize()
   };
 })();
