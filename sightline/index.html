@@ -1,0 +1,1211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sightline</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sightline">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,400..800;1,62..125,400..700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.9.0/ol.css">
+<style>
+/* Layout: full-bleed relief map, floating search on top, control sheet docked at the bottom (side panel on wide screens). Sibling of Floodline. */
+:root {
+  --paper: #f3f5f2;
+  --panel: #ffffff;
+  --ink: #16211c;
+  --ink-soft: #5c6b63;
+  --rule: #dbe2dd;
+  --accent: #2f7d4f;       /* fern: viewpoint and active controls */
+  --accent-ink: #ffffff;
+  --ground: #e4d8bf;       /* profile chart earth */
+  --ground-edge: #a8916a;
+  --good: #2f7d4f;
+  --block: #c63a2f;
+  --shadow: 0 6px 24px rgba(22, 33, 28, .18);
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1512; --panel: #17211c; --ink: #e7eee9; --ink-soft: #95a59c;
+    --rule: #2b3a33; --accent: #5cbf85; --accent-ink: #0f1512;
+    --ground: #4a4031; --ground-edge: #8c7752; --good: #5cbf85; --block: #ef6a5c;
+    --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1512; --panel: #17211c; --ink: #e7eee9; --ink-soft: #95a59c;
+  --rule: #2b3a33; --accent: #5cbf85; --accent-ink: #0f1512;
+  --ground: #4a4031; --ground-edge: #8c7752; --good: #5cbf85; --block: #ef6a5c;
+  --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 15px/1.4 var(--f-body);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+#map { position: fixed; inset: 0; background: #dfe3df; }
+
+/* Search */
+.top {
+  position: fixed; z-index: 6;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  max-width: 440px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.searchbar {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--panel); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 4px 4px 4px 12px;
+}
+.searchbar svg { flex: none; color: var(--ink-soft); }
+#q {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink);
+  font: 500 16px var(--f-body); padding: 10px 4px;
+}
+#q::placeholder { color: var(--ink-soft); font-weight: 400; }
+.iconbtn {
+  flex: none; width: 40px; height: 40px; border-radius: 9px; border: 0;
+  display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--ink);
+}
+.iconbtn:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.results {
+  list-style: none; margin: 0; padding: 4px; background: var(--panel);
+  border-radius: 12px; box-shadow: var(--shadow); max-height: 50vh; overflow: auto;
+}
+.results button {
+  width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink);
+  padding: 10px; border-radius: 8px; cursor: pointer; font: 15px var(--f-body);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.results button:hover, .results button:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.results small { color: var(--ink-soft); font-size: 13px; }
+
+/* Control sheet */
+.sheet {
+  position: fixed; z-index: 4; left: 0; right: 0; bottom: 0;
+  background: var(--panel); color: var(--ink);
+  border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
+  padding-top: 14px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: 50vh; overflow-y: auto; overscroll-behavior: contain;
+}
+@media (min-width: 900px) {
+  .sheet {
+    left: auto; right: 16px; bottom: 16px; width: 390px;
+    border-radius: 16px; max-height: calc(100vh - 32px);
+    padding-bottom: 16px;
+  }
+}
+
+.readout { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.readout > div { min-width: 0; }
+.big {
+  font-family: var(--f-display); font-stretch: 70%; font-weight: 750;
+  font-size: 48px; line-height: .9; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.big small { font-size: 22px; font-weight: 600; color: var(--ink-soft); margin-left: 2px; }
+.meta { text-align: right; font-size: 13px; color: var(--ink-soft); line-height: 1.35; max-width: 58%; }
+.meta b { color: var(--ink); font-weight: 600; }
+.label {
+  font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ink-soft);
+}
+.status { font: 12px var(--f-mono); color: var(--ink-soft); min-height: 1.2em; margin-top: -4px; }
+.status.busy::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%;
+  background: var(--accent); vertical-align: 1px; animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .25; } }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.seg button {
+  border: 0; background: transparent; color: var(--ink-soft); cursor: pointer;
+  height: 34px; padding: 0 12px; border-radius: 8px; font: 600 13px var(--f-body);
+}
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.seg button:focus-visible, .btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--rule); background: transparent; color: var(--ink-soft);
+  font: 600 13px var(--f-body); cursor: pointer;
+}
+.chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+.chip i { width: 18px; border-top: 2px dashed currentColor; }
+
+/* Sliders */
+.ctl { display: flex; flex-direction: column; gap: 2px; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ctl-head span:last-child { font: 500 14px var(--f-mono); font-variant-numeric: tabular-nums; }
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0;
+  background: transparent; cursor: pointer; --pct: 50%;
+}
+input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--ink) var(--pct), var(--rule) var(--pct));
+}
+input[type="range"]::-moz-range-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--ink) var(--pct), var(--rule) var(--pct));
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 24px; height: 24px; margin-top: -9px; border-radius: 50%;
+  background: var(--panel); border: 3px solid var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--panel); border: 3px solid var(--ink);
+}
+
+/* Distance key */
+.dkey { display: flex; flex-direction: column; gap: 4px; }
+.dbar { height: 8px; border-radius: 4px; }
+.dlabels { display: flex; justify-content: space-between; font: 11px var(--f-mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* Profile card */
+.profile {
+  border: 1px solid var(--rule); border-radius: 14px; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.profile-head { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.profile-head h2 { margin: 0; font: 650 15px/1.3 var(--f-body); text-wrap: balance; min-width: 0; }
+.profile-head h2 em { font-style: italic; font-weight: 600; }
+.closebtn { flex: none; width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; display: grid; place-items: center; }
+.closebtn:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px;
+  font: 650 12px var(--f-body); white-space: nowrap;
+}
+.pill.ok { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.pill.no { background: color-mix(in srgb, var(--block) 16%, transparent); color: var(--block); }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sub { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 13px var(--f-mono); color: var(--ink-soft); }
+#chart { width: 100%; height: 150px; display: block; overflow: visible; }
+#chart text { font: 10px var(--f-mono); fill: var(--ink-soft); }
+#chart .grid { stroke: var(--rule); stroke-width: 1; }
+#chart .ground { fill: var(--ground); stroke: none; }
+#chart .ground-edge { fill: none; stroke: var(--ground-edge); stroke-width: 1.5; }
+#chart .blocked { fill: none; stroke: var(--block); stroke-width: 3; stroke-linecap: round; }
+#chart .clear { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 2; }
+#chart .tag { fill: var(--ink); font-weight: 500; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
+.stats div { min-width: 0; }
+.stats dt { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); }
+.stats dd { margin: 2px 0 0; font-size: 14px; }
+.btn {
+  border: 1px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer;
+  border-radius: 9px; height: 36px; padding: 0 12px; font: 600 13px var(--f-body); align-self: flex-start;
+}
+
+details.key { border-top: 1px solid var(--rule); padding-top: 10px; }
+details.key summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); list-style: none; display: flex; align-items: center; gap: 6px; }
+details.key summary::-webkit-details-marker { display: none; }
+details.key summary::before { content: "+"; font: 500 14px var(--f-mono); width: 14px; color: var(--ink-soft); }
+details.key[open] summary::before { content: "\2212"; }
+.keylist { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.keylist li { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.keylist svg { justify-self: center; }
+.note { margin: 10px 0 0; font-size: 12px; color: var(--ink-soft); line-height: 1.45; max-width: 60ch; }
+.note b { font-weight: 600; color: var(--ink); }
+
+.toast {
+  position: fixed; z-index: 10; left: 50%; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top, 0px) + 72px);
+  background: var(--ink); color: var(--panel); padding: 10px 14px; border-radius: 10px;
+  font-size: 14px; box-shadow: var(--shadow); max-width: calc(100vw - 32px);
+}
+.layerbtn {
+  position: fixed; z-index: 5;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--sheet-h, 0px) + 12px);
+  height: 40px; padding: 0 12px; border: 0; border-radius: 10px; cursor: pointer;
+  background: var(--panel); color: var(--ink); box-shadow: var(--shadow);
+  font: 600 13px var(--f-body); display: inline-flex; align-items: center; gap: 6px;
+}
+.layerbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (min-width: 900px) { .layerbtn { right: 422px; bottom: 16px; } }
+.ol-attribution.ol-uncollapsible {
+  top: auto; right: auto; bottom: 16px; left: 16px; max-width: 50vw;
+  border-radius: 6px; background: rgba(255,255,255,.8); font-size: 11px;
+}
+@media (max-width: 899px) { .ol-attribution { display: none; } }
+.attr-mobile { font-size: 11px; color: var(--ink-soft); margin: 0; }
+@media (min-width: 900px) { .attr-mobile { display: none; } }
+@media (prefers-reduced-motion: reduce) { .status.busy::before { animation: none; } }
+</style>
+</head>
+<body>
+<div id="map" aria-label="Map"></div>
+
+<div class="top">
+  <form class="searchbar" id="searchForm" role="search" autocomplete="off">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search a hill, town or postcode" aria-label="Search for a place">
+    <button class="iconbtn" type="button" id="locate" title="Look from my location" aria-label="Look from my location">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    </button>
+  </form>
+  <ul class="results" id="results" hidden></ul>
+</div>
+
+<section class="sheet" aria-label="Sight line controls">
+  <div class="readout">
+    <div>
+      <div class="label" id="bigLabel">Sight lines</div>
+      <div class="big" aria-live="polite"><span id="bigVal">0</span><small id="bigSmall"></small></div>
+    </div>
+    <div class="meta" id="meta">Finding hills…</div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="profile" id="profile" hidden>
+    <div class="profile-head">
+      <h2 id="pTitle"></h2>
+      <button class="closebtn" type="button" id="pClose" aria-label="Close profile">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="sub" id="pSub"></div>
+    <svg id="chart" role="img" aria-label="Ground profile along the sight line"></svg>
+    <dl class="stats" id="pStats"></dl>
+    <button class="btn" type="button" id="pLook" hidden></button>
+  </div>
+
+  <div class="row">
+    <div class="seg" role="group" aria-label="Which lines to draw">
+      <button type="button" id="modeAll" aria-pressed="true">All hills</button>
+      <button type="button" id="modeFrom" aria-pressed="false">From viewpoint</button>
+    </div>
+    <div class="seg" role="group" aria-label="Distance units">
+      <button type="button" id="uMi" aria-pressed="true">mi</button>
+      <button type="button" id="uKm" aria-pressed="false">km</button>
+    </div>
+    <button class="chip" type="button" id="blockedBtn" aria-pressed="false" hidden><i></i>Hidden</button>
+  </div>
+
+  <div class="ctl">
+    <div class="ctl-head"><label class="label" for="minH">Lowest summit</label><span id="minHVal">50 m</span></div>
+    <input id="minH" type="range" min="0" max="1000" step="1" value="192">
+  </div>
+  <div class="ctl">
+    <div class="ctl-head"><label class="label" for="minP">Hill rises above its surroundings by</label><span id="minPVal">10 m</span></div>
+    <input id="minP" type="range" min="0" max="1000" step="1" value="160">
+  </div>
+
+  <div class="dkey">
+    <div class="dbar" id="dbar"></div>
+    <div class="dlabels"><span id="dNear">Near</span><span id="dMid"></span><span id="dMax">Far</span></div>
+  </div>
+
+  <details class="key">
+    <summary>Key and method</summary>
+    <ul class="keylist">
+      <li>
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 3.5 19 17.5H3z" fill="#fff" stroke="#16211c" stroke-width="1.8" stroke-linejoin="round"/><circle cx="11" cy="12.8" r="1.8" fill="#16211c"/></svg>
+        <span>Hill summit, height in metres. Faded when hidden from the viewpoint.</span>
+      </li>
+      <li>
+        <svg width="30" height="30" viewBox="0 0 36 36" aria-hidden="true"><g stroke="#2f7d4f" stroke-width="2.2" stroke-linecap="round"><path d="M18 3v5M18 28v5M3 18h5M28 18h5M7.4 7.4l3.5 3.5M25.1 25.1l3.5 3.5M7.4 28.6l3.5-3.5M25.1 10.9l3.5-3.5"/></g><circle cx="18" cy="18" r="6" fill="#2f7d4f" stroke="#fff" stroke-width="2"/></svg>
+        <span>Viewpoint. Tap a hill or any spot to look from there.</span>
+      </li>
+      <li>
+        <svg width="34" height="16" viewBox="0 0 34 16" aria-hidden="true"><path d="M2 8h30" stroke="#8a48c4" stroke-width="2.5"/><path d="M14 3l6 5-6 5" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 3l6 5-6 5" fill="none" stroke="#16211c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Line falls towards the arrow, 0.5 to 3% (1 in 200 to 1 in 33).</span>
+      </li>
+      <li>
+        <svg width="34" height="16" viewBox="0 0 34 16" aria-hidden="true"><path d="M2 8h30" stroke="#8a48c4" stroke-width="2.5"/><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l6 5-6 5M17 3l6 5-6 5" stroke="#fff" stroke-width="5"/><path d="M11 3l6 5-6 5M17 3l6 5-6 5" stroke="#16211c" stroke-width="2.2"/></g></svg>
+        <span>Steeper than 3%. Arrows point downhill, as on OS road gradients. No arrow means roughly level.</span>
+      </li>
+    </ul>
+    <p class="note">
+      Hills are found in terrain data by <b>prominence</b>: how far a summit rises above the lowest col linking it to higher ground. Sight lines allow for the Earth's curvature and normal atmospheric refraction, with someone 1.7 m tall standing at each end. Trees, buildings and haze aren't included, so real views can be more blocked.
+      <span id="gridNote"></span>
+    </p>
+  </details>
+  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. Hill names: © OpenStreetMap contributors. Basemap: © Esri, HERE, Garmin.</p>
+</section>
+
+<button class="layerbtn" id="bgToggle" type="button" aria-label="Change map style">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>
+  <span id="bgText">Relief</span>
+</button>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script type="text/plain" id="worker-src">
+"use strict";
+const R = 6371008.8, REFF = R / (1 - 0.13), EYE = 1.7, MINP = 5;
+let G = null;
+
+self.onmessage = (ev) => {
+  const { id, type, p } = ev.data;
+  try {
+    let out = null;
+    if (type === "grid") {
+      G = { v: p.v, W: p.W, H: p.H, e: new Float32Array(p.e), gx0: p.gx0, gy0: p.gy0, world: 256 * Math.pow(2, p.z) };
+      out = findPeaks();
+    } else if (!G || p.v !== G.v) {
+      out = null; // stale request for an older grid
+    } else if (type === "from") out = fromViewpoint(p);
+    else if (type === "all") out = allPairs(p);
+    else if (type === "profile") out = profile(p);
+    self.postMessage({ id, ok: true, out });
+  } catch (err) {
+    self.postMessage({ id, ok: false, err: String(err && err.message || err) });
+  }
+};
+
+function latOf(y) { const gy = G.gy0 + y + 0.5; return Math.atan(Math.sinh(Math.PI * (1 - 2 * gy / G.world))); }
+function lonOf(x) { return ((G.gx0 + x + 0.5) / G.world * 2 - 1) * Math.PI; }
+function dist(ax, ay, bx, by) {
+  const p1 = latOf(ay), p2 = latOf(by), dl = lonOf(bx) - lonOf(ax);
+  const a = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+function sample(x, y) {
+  const W = G.W, H = G.H, e = G.e;
+  if (x < 0) x = 0; if (y < 0) y = 0; if (x > W - 1) x = W - 1; if (y > H - 1) y = H - 1;
+  const x0 = x | 0, y0 = y | 0, x1 = Math.min(x0 + 1, W - 1), y1 = Math.min(y0 + 1, H - 1);
+  const fx = x - x0, fy = y - y0, i0 = y0 * W, i1 = y1 * W;
+  const a = e[i0 + x0] + (e[i0 + x1] - e[i0 + x0]) * fx;
+  const b = e[i1 + x0] + (e[i1 + x1] - e[i1 + x0]) * fx;
+  return a + (b - a) * fy;
+}
+
+// Topographic prominence by flooding from the top down with union-find.
+function findPeaks() {
+  const W = G.W, H = G.H, e = G.e, n = W * H;
+  let mn = Infinity, mx = -Infinity;
+  for (let i = 0; i < n; i++) { const v = e[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+  if (!(mx > mn)) return { peaks: new Float32Array(0), mn, mx };
+  const Q = 4, nb = Math.ceil((mx - mn) * Q) + 1;
+  const cnt = new Int32Array(nb);
+  for (let i = 0; i < n; i++) cnt[((e[i] - mn) * Q) | 0]++;
+  let acc = 0;
+  for (let k = nb - 1; k >= 0; k--) { const c = cnt[k]; cnt[k] = acc; acc += c; }
+  const order = new Int32Array(n);
+  for (let i = 0; i < n; i++) order[cnt[((e[i] - mn) * Q) | 0]++] = i;
+
+  const parent = new Int32Array(n).fill(-1);
+  const peak = new Int32Array(n);
+  const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  const out = [];
+  const keep = (idx, prom) => {
+    const x = idx % W, y = (idx / W) | 0;
+    if (x < 3 || y < 3 || x > W - 4 || y > H - 4) return; // summit may continue beyond the scanned area
+    out.push(x, y, e[idx], prom);
+  };
+  for (let oi = 0; oi < n; oi++) {
+    const p = order[oi];
+    parent[p] = p; peak[p] = p;
+    const px = p % W, py = (p / W) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      const yy = py + dy; if (yy < 0 || yy >= H) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const xx = px + dx; if (xx < 0 || xx >= W) continue;
+        const q = yy * W + xx;
+        if (parent[q] < 0) continue;
+        const rp = find(p), rq = find(q);
+        if (rp === rq) continue;
+        const pp = peak[rp], pq = peak[rq];
+        let hi, lo;
+        if (e[pp] >= e[pq]) { hi = rp; lo = rq; } else { hi = rq; lo = rp; }
+        const lowPeak = peak[lo], prom = e[lowPeak] - e[p];
+        if (prom >= MINP) keep(lowPeak, prom);
+        parent[lo] = hi;
+      }
+    }
+  }
+  const top = peak[find(order[0])];
+  keep(top, e[top] - mn);
+  return { peaks: new Float32Array(out), mn, mx };
+}
+
+function los(ax, ay, za, bx, by, zb, D, full) {
+  const pd = Math.hypot(bx - ax, by - ay);
+  const steps = Math.max(2, Math.ceil(pd));
+  const skip = 1.5 / Math.max(pd, 1e-6);
+  let minC = Infinity, minT = 0.5;
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (t < skip || t > 1 - skip) continue;
+    const h = sample(ax + (bx - ax) * t, ay + (by - ay) * t);
+    const d = t * D, bulge = d * (D - d) / (2 * REFF);
+    const c = za + (zb - za) * t - (h + bulge);
+    if (c < minC) { minC = c; minT = t; }
+    if (c < 0 && !full) return [minC, minT];
+  }
+  if (minC === Infinity) minC = 0;
+  return [minC, minT];
+}
+
+function fromViewpoint(p) {
+  const vh = p.vh == null ? sample(p.vx, p.vy) : p.vh;
+  const t = p.targets, n = t.length / 3;
+  const out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const x = t[i * 3], y = t[i * 3 + 1], h = t[i * 3 + 2];
+    const D = dist(p.vx, p.vy, x, y);
+    const r = los(p.vx, p.vy, vh + EYE, x, y, h + EYE, D, false);
+    out[i * 3] = D; out[i * 3 + 1] = r[0]; out[i * 3 + 2] = r[0] >= 0 ? 1 : 0;
+  }
+  return { vh, res: out };
+}
+
+function allPairs(p) {
+  const s = p.pts, n = s.length / 3, out = [];
+  for (let i = 0; i < n; i++) {
+    const ax = s[i * 3], ay = s[i * 3 + 1], ah = s[i * 3 + 2];
+    for (let j = i + 1; j < n; j++) {
+      const bx = s[j * 3], by = s[j * 3 + 1], bh = s[j * 3 + 2];
+      if (Math.hypot(bx - ax, by - ay) < 3) continue;
+      const D = dist(ax, ay, bx, by);
+      const r = los(ax, ay, ah + EYE, bx, by, bh + EYE, D, false);
+      if (r[0] >= 0) out.push(i, j, D, r[0]);
+    }
+  }
+  return new Float32Array(out);
+}
+
+function profile(p) {
+  const ah = p.ah == null ? sample(p.ax, p.ay) : p.ah;
+  const bh = p.bh == null ? sample(p.bx, p.by) : p.bh;
+  const D = dist(p.ax, p.ay, p.bx, p.by);
+  const za = ah + EYE, zb = bh + EYE;
+  const r = los(p.ax, p.ay, za, p.bx, p.by, zb, D, true);
+  const pd = Math.hypot(p.bx - p.ax, p.by - p.ay);
+  const N = Math.max(2, Math.min(360, Math.ceil(pd)));
+  const d = new Float32Array(N + 1), g = new Float32Array(N + 1);
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, x = p.ax + (p.bx - p.ax) * t, y = p.ay + (p.by - p.ay) * t;
+    const dd = t * D;
+    d[i] = dd; g[i] = sample(x, y) + dd * (D - dd) / (2 * REFF);
+  }
+  // closest approach over the ground between, ignoring the summit domes at each end
+  let midC = Infinity, midT = 0.5;
+  const steps = Math.max(2, Math.ceil(pd));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps; if (t < 0.06 || t > 0.94) continue;
+    const dd = t * D, h = sample(p.ax + (p.bx - p.ax) * t, p.ay + (p.by - p.ay) * t) + dd * (D - dd) / (2 * REFF);
+    const c = za + (zb - za) * t - h;
+    if (c < midC) { midC = c; midT = t; }
+  }
+  if (midC === Infinity) { midC = r[0]; midT = r[1]; }
+  return { D, ah, bh, za, zb, minC: r[0], minT: r[1], midC, midT, d, g };
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/ol@10.9.0/dist/ol.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const C = 2 * Math.PI * 6378137;
+  const REFF = 6371008.8 / (1 - 0.13);
+  const MAX_ALL = 80, MAX_FROM = 400;
+  const PX_BUDGET = 2.4e6, ZMAX = 12, ZMIN = 9;
+  const START = { lon: -1.13, lat: 51.0, zoom: 10.7 }; // South Downs, Winchester to Butser
+  const INK = "#16211c", ACCENT = "#2f7d4f";
+
+  // ---- per-viewer preferences ----
+  const pref = {
+    get(k, d) { try { const v = localStorage.getItem("sightline." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("sightline." + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  let units = pref.get("units", "mi");
+  let minH = pref.get("minH", 50);
+  let minP = pref.get("minP", 10);
+  let showBlocked = pref.get("blocked", false);
+  let mode = "all";
+  let viewpoint = null;    // { coord, name, hill }
+  let hillsAll = [];       // { x, y, h, prom, coord, name }
+  let lines = [];          // { a, b, D, minC, visible }
+  let shownHills = [];
+  let grid = null;         // { v, z, gx0, gy0, W, H, world, mPerPx, tiles }
+  let gridV = 0, scanId = 0, losId = 0;
+  let selected = null;     // { a, b }
+  let dMax = 1;
+
+  // ---- worker ----
+  const worker = new Worker(URL.createObjectURL(new Blob([$("worker-src").textContent], { type: "text/javascript" })));
+  let reqId = 0; const pending = new Map();
+  worker.onmessage = (ev) => {
+    const { id, ok, out, err } = ev.data; const pr = pending.get(id);
+    if (!pr) return; pending.delete(id); ok ? pr.res(out) : pr.rej(new Error(err));
+  };
+  const call = (type, p, transfer) => new Promise((res, rej) => {
+    const id = ++reqId; pending.set(id, { res, rej }); worker.postMessage({ id, type, p }, transfer || []);
+  });
+
+  // ---- colour ramp: blue (near) to red (far), mixed in OKLab ----
+  const lin = (c) => { c /= 255; return c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); };
+  const delin = (c) => { const v = c <= .0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - .055; return Math.round(Math.max(0, Math.min(1, v)) * 255); };
+  function toLab(rgb) {
+    const [r, g, b] = rgb.map(lin);
+    const l = Math.cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b);
+    const m = Math.cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b);
+    const s = Math.cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
+    return [.2104542553 * l + .7936177850 * m - .0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + .4505937099 * s, .0259040371 * l + .7827717662 * m - .8086757660 * s];
+  }
+  function fromLab([L, a, b]) {
+    const l = (L + .3963377774 * a + .2158037573 * b) ** 3, m = (L - .1055613458 * a - .0638541728 * b) ** 3, s = (L - .0894841775 * a - 1.2914855480 * b) ** 3;
+    return [delin(4.0767416621 * l - 3.3077115913 * m + .2309699292 * s), delin(-1.2684380046 * l + 2.6097574011 * m - .3413193965 * s), delin(-.0041960863 * l - .7034186147 * m + 1.7076147010 * s)];
+  }
+  const STOPS = [[30, 104, 214], [138, 72, 196], [222, 50, 42]].map(toLab);
+  const RAMP = [];
+  for (let i = 0; i < 64; i++) {
+    const t = i / 63, seg = t < .5 ? 0 : 1, u = t < .5 ? t * 2 : (t - .5) * 2;
+    const A = STOPS[seg], B = STOPS[seg + 1];
+    const c = fromLab([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u, A[2] + (B[2] - A[2]) * u]);
+    RAMP.push("rgb(" + c.join(",") + ")");
+  }
+  $("dbar").style.background = "linear-gradient(90deg," + [0, 9, 18, 27, 36, 45, 54, 63].map((i) => RAMP[i]).join(",") + ")";
+  let dMin = 0;
+  const rampIndex = (D) => Math.max(0, Math.min(63, Math.round((D - dMin) / Math.max(1, dMax - dMin) * 63)));
+
+  // ---- formatting ----
+  const fmtD = (m) => {
+    if (units === "mi") { const v = m / 1609.344; return (v < 10 ? v.toFixed(1) : Math.round(v)) + " mi"; }
+    const v = m / 1000; return (v < 10 ? v.toFixed(1) : Math.round(v)) + " km";
+  };
+  const fmtH = (h) => Math.round(h) + " m";
+  const nameOf = (pt) => pt.view ? (pt.name || "Your viewpoint") : (pt.name || "Hill " + fmtH(pt.h));
+
+  // ---- map ----
+  const esri = (svc, maxZoom, attr) => new ol.source.XYZ({
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/" + svc + "/MapServer/tile/{z}/{y}/{x}",
+    maxZoom, attributions: attr || "Basemap © Esri, HERE, Garmin, © OpenStreetMap contributors"
+  });
+  const BG = {
+    relief: [new ol.layer.Tile({ source: esri("Canvas/World_Light_Gray_Base", 16) }),
+             new ol.layer.Tile({ source: esri("Elevation/World_Hillshade", 16, "Hillshade © Esri"), opacity: .42 })],
+    topo: [new ol.layer.Tile({ source: esri("World_Topo_Map", 19), visible: false })],
+    satellite: [new ol.layer.Tile({ source: esri("World_Imagery", 19, "Imagery © Esri, Maxar, Earthstar Geographics"), visible: false })]
+  };
+  const places = new ol.layer.Tile({ source: esri("Reference/World_Boundaries_and_Places", 19) });
+
+  const linesSrc = new ol.source.Vector(), chevSrc = new ol.source.Vector(), selSrc = new ol.source.Vector();
+  const hillSrc = new ol.source.Vector(), labelSrc = new ol.source.Vector(), vpSrc = new ol.source.Vector();
+  const linesLayer = new ol.layer.Vector({ source: linesSrc, renderOrder: (a, b) => b.get("D") - a.get("D") });
+  const chevLayer = new ol.layer.Vector({ source: chevSrc });
+  const selLayer = new ol.layer.Vector({ source: selSrc });
+  const hillLayer = new ol.layer.Vector({ source: hillSrc });
+  const labelLayer = new ol.layer.Vector({ source: labelSrc, declutter: true });
+  const vpLayer = new ol.layer.Vector({ source: vpSrc });
+
+  const map = new ol.Map({
+    target: "map",
+    layers: [...BG.relief, ...BG.topo, ...BG.satellite, places, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer],
+    controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attributionOptions: { collapsible: false } }),
+    view: new ol.View({ center: ol.proj.fromLonLat([START.lon, START.lat]), zoom: START.zoom, minZoom: 6, maxZoom: 16, enableRotation: false })
+  });
+
+  // ---- styles ----
+  const S = ol.style;
+  const lineStyleCache = {};
+  function lineStyle(ci, w) {
+    const k = ci + "|" + w;
+    return lineStyleCache[k] || (lineStyleCache[k] = new S.Style({ stroke: new S.Stroke({ color: RAMP[ci], width: w, lineCap: "round" }) }));
+  }
+  const blockedStyle = new S.Style({ stroke: new S.Stroke({ color: "rgba(22,33,28,.45)", width: 1.3, lineDash: [4, 5] }) });
+
+  const chevSvg = (n) => {
+    const paths = n === 2 ? "M5 3l6 5-6 5M11 3l6 5-6 5" : "M6 3l6 5-6 5";
+    const w = n === 2 ? 22 : 18;
+    return "data:image/svg+xml;utf8," + encodeURIComponent(
+      "<svg xmlns='http://www.w3.org/2000/svg' width='" + w + "' height='16' viewBox='0 0 " + w + " 16'>" +
+      "<g fill='none' stroke-linecap='round' stroke-linejoin='round'><path d='" + paths + "' stroke='white' stroke-width='5'/>" +
+      "<path d='" + paths + "' stroke='" + INK + "' stroke-width='2.2'/></g></svg>");
+  };
+  const CHEV = { 1: chevSvg(1), 2: chevSvg(2) };
+
+  function hillShape(faded) {
+    const ink = faded ? "rgba(22,33,28,.38)" : INK;
+    return [
+      new S.Style({ image: new S.RegularShape({ points: 3, radius: 8.5, fill: new S.Fill({ color: faded ? "rgba(255,255,255,.65)" : "#fff" }), stroke: new S.Stroke({ color: ink, width: 1.8 }) }) }),
+      new S.Style({ image: new S.Circle({ radius: 1.8, fill: new S.Fill({ color: ink }) }) })
+    ];
+  }
+  const HILL_ON = hillShape(false), HILL_OFF = hillShape(true);
+  function hillLabel(h, faded) {
+    const fill = new S.Fill({ color: faded ? "rgba(22,33,28,.5)" : INK });
+    const stroke = new S.Stroke({ color: "rgba(255,255,255,.92)", width: 3 });
+    const text = h.name
+      ? [h.name, "italic 600 12px Archivo, system-ui, sans-serif", "\n", "", String(Math.round(h.h)), "500 11px 'IBM Plex Mono', ui-monospace, monospace"]
+      : String(Math.round(h.h));
+    return new S.Style({ text: new S.Text({ text, font: "500 11px 'IBM Plex Mono', ui-monospace, monospace", fill, stroke, offsetY: -12, textBaseline: "bottom", textAlign: "center" }) });
+  }
+
+  const VP_SVG = "data:image/svg+xml;utf8," + encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'>" +
+    "<g stroke='white' stroke-width='5' stroke-linecap='round'><path d='M18 3v5M18 28v5M3 18h5M28 18h5M7.4 7.4l3.5 3.5M25.1 25.1l3.5 3.5M7.4 28.6l3.5-3.5M25.1 10.9l3.5-3.5'/></g>" +
+    "<g stroke='" + ACCENT + "' stroke-width='2.2' stroke-linecap='round'><path d='M18 3v5M18 28v5M3 18h5M28 18h5M7.4 7.4l3.5 3.5M25.1 25.1l3.5 3.5M7.4 28.6l3.5-3.5M25.1 10.9l3.5-3.5'/></g>" +
+    "<circle cx='18' cy='18' r='6.5' fill='" + ACCENT + "' stroke='white' stroke-width='2.2'/></svg>");
+  const vpStyle = new S.Style({ image: new S.Icon({ src: VP_SVG, width: 36, height: 36 }) });
+
+  // ---- coordinates ----
+  const pxToMap = (x, y) => [((grid.gx0 + x + .5) / grid.world - .5) * C, (.5 - (grid.gy0 + y + .5) / grid.world) * C];
+  const mapToPx = (c) => [(c[0] / C + .5) * grid.world - grid.gx0 - .5, (.5 - c[1] / C) * grid.world - grid.gy0 - .5];
+  const inGrid = (c) => { const p = mapToPx(c); return p[0] >= 0 && p[1] >= 0 && p[0] <= grid.W - 1 && p[1] <= grid.H - 1; };
+
+  // ---- status ----
+  function setStatus(msg, busy) { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("busy", !!busy); }
+  let toastTimer = 0;
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3400); }
+
+  // ---- terrain tiles ----
+  const tileCache = new Map();
+  const tcv = document.createElement("canvas"); tcv.width = tcv.height = 256;
+  const tctx = tcv.getContext("2d", { willReadFrequently: true });
+  function loadTile(z, x, y) {
+    const key = z + "/" + x + "/" + y;
+    if (tileCache.has(key)) return tileCache.get(key);
+    const pr = new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          tctx.clearRect(0, 0, 256, 256); tctx.drawImage(img, 0, 0);
+          const d = tctx.getImageData(0, 0, 256, 256).data, out = new Float32Array(65536);
+          for (let i = 0, j = 0; i < 65536; i++, j += 4) {
+            const v = d[j] * 256 + d[j + 1] + d[j + 2] / 256 - 32768;
+            out[i] = v > 0 ? v : 0; // sea and below-sea land read as sea level
+          }
+          resolve(out);
+        } catch (e) { resolve(null); }
+      };
+      img.onerror = () => { tileCache.delete(key); resolve(null); };
+      img.src = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/" + key + ".png";
+    });
+    tileCache.set(key, pr);
+    if (tileCache.size > 500) tileCache.delete(tileCache.keys().next().value);
+    return pr;
+  }
+
+  // ---- scan ----
+  async function scan() {
+    const id = ++scanId;
+    const size = map.getSize(); if (!size || !size[0]) return;
+    let ext = map.getView().calculateExtent(size);
+    if (mode === "from" && viewpoint) ext = ol.extent.extend(ext.slice(), ol.extent.boundingExtent([viewpoint.coord]));
+    let z = ZMAX, gx0, gy0, W, H;
+    for (; z >= ZMIN; z--) {
+      const world = 256 * Math.pow(2, z);
+      const x0 = (ext[0] / C + .5) * world, x1 = (ext[2] / C + .5) * world;
+      const y0 = Math.max(0, (.5 - ext[3] / C) * world), y1 = Math.min(world - 1, (.5 - ext[1] / C) * world);
+      gx0 = Math.floor(x0) - 4; gy0 = Math.max(0, Math.floor(y0) - 4);
+      W = Math.ceil(x1 - x0) + 8; H = Math.min(world - gy0, Math.ceil(y1 - y0) + 8);
+      if (W * H <= PX_BUDGET) break;
+    }
+    if (z < ZMIN) {
+      setStatus("");
+      $("meta").textContent = "Zoom in to find hills. This area is too big to scan.";
+      clearDrawing(); return;
+    }
+    const n = Math.pow(2, z), world = 256 * n;
+    const tx0 = Math.floor(gx0 / 256), tx1 = Math.floor((gx0 + W - 1) / 256);
+    const ty0 = Math.floor(gy0 / 256), ty1 = Math.floor((gy0 + H - 1) / 256);
+    const jobs = [];
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) jobs.push({ tx, ty });
+    setStatus("Reading " + jobs.length + " terrain tiles", true);
+    const tiles = await Promise.all(jobs.map((j) => loadTile(z, ((j.tx % n) + n) % n, j.ty)));
+    if (id !== scanId) return;
+    const e = new Float32Array(W * H);
+    let missing = 0;
+    jobs.forEach((j, k) => {
+      const t = tiles[k]; if (!t) { missing++; return; }
+      const ox = j.tx * 256 - gx0, oy = j.ty * 256 - gy0;
+      const xs = Math.max(0, ox), xe = Math.min(W, ox + 256), ys = Math.max(0, oy), ye = Math.min(H, oy + 256);
+      for (let y = ys; y < ye; y++) {
+        const src = (y - oy) * 256 - ox, dst = y * W;
+        for (let x = xs; x < xe; x++) e[dst + x] = t[src + x];
+      }
+    });
+    if (missing === jobs.length) { setStatus("Terrain data didn't load. Check your connection and move the map to retry."); return; }
+    setStatus("Finding hills", true);
+    const v = ++gridV;
+    const res = await call("grid", { v, W, H, z, gx0, gy0, e: e.buffer }, [e.buffer]);
+    if (id !== scanId) return;
+    const lat = ol.proj.toLonLat(map.getView().getCenter())[1] * Math.PI / 180;
+    grid = { v, z, gx0, gy0, W, H, world, tiles: jobs.length, mPerPx: C / world * Math.cos(lat) };
+    const pk = res.peaks; hillsAll = [];
+    for (let i = 0; i < pk.length; i += 4) hillsAll.push({ x: pk[i], y: pk[i + 1], h: pk[i + 2], prom: pk[i + 3], coord: null, name: null });
+    hillsAll.forEach((h) => (h.coord = pxToMap(h.x, h.y)));
+    hillsAll.sort((a, b) => b.prom - a.prom);
+    applyNames();
+    if (viewpoint && viewpoint.hill) resnapViewpoint();
+    $("gridNote").textContent = " Terrain grid here: about " + Math.round(grid.mPerPx) + " m." + (missing ? " " + missing + " tiles failed to load." : "");
+    await computeLines();
+    fetchNames(ext);
+  }
+
+  function resnapViewpoint() {
+    const p = mapToPx(viewpoint.coord); let best = null, bd = 4;
+    hillsAll.forEach((h) => { const d = Math.hypot(h.x - p[0], h.y - p[1]); if (d < bd) { bd = d; best = h; } });
+    if (best) { viewpoint.hill = best; viewpoint.coord = best.coord; viewpoint.name = best.name; }
+    else viewpoint.hill = null;
+  }
+
+  const filteredHills = () => hillsAll.filter((h) => h.h >= minH && h.prom >= minP);
+
+  async function computeLines() {
+    if (!grid) return;
+    const id = ++losId;
+    const hills = filteredHills();
+    setStatus("Checking sight lines", true);
+    if (mode === "from" && viewpoint) {
+      if (!inGrid(viewpoint.coord)) { setStatus("Scanning around the viewpoint", true); scheduleScan(0); return; }
+      const vp = mapToPx(viewpoint.coord);
+      const targets = hills.slice(0, MAX_FROM).filter((h) => Math.hypot(h.x - vp[0], h.y - vp[1]) > 3);
+      const arr = new Float32Array(targets.length * 3);
+      targets.forEach((h, i) => { arr[i * 3] = h.x; arr[i * 3 + 1] = h.y; arr[i * 3 + 2] = h.h; });
+      const res = await call("from", { v: grid.v, vx: vp[0], vy: vp[1], vh: viewpoint.hill ? viewpoint.hill.h : null, targets: arr });
+      if (id !== losId || !res) return;
+      viewpoint.h = res.vh;
+      const A = vpPoint();
+      lines = targets.map((h, i) => ({ a: A, b: h, D: res.res[i * 3], minC: res.res[i * 3 + 1], visible: res.res[i * 3 + 2] > 0 }));
+      shownHills = targets;
+    } else {
+      const set = hills.slice(0, MAX_ALL);
+      const arr = new Float32Array(set.length * 3);
+      set.forEach((h, i) => { arr[i * 3] = h.x; arr[i * 3 + 1] = h.y; arr[i * 3 + 2] = h.h; });
+      const res = await call("all", { v: grid.v, pts: arr });
+      if (id !== losId || !res) return;
+      lines = [];
+      for (let k = 0; k < res.length; k += 4) lines.push({ a: set[res[k]], b: set[res[k + 1]], D: res[k + 2], minC: res[k + 3], visible: true });
+      shownHills = set;
+      shownHills.capped = hills.length > MAX_ALL;
+      shownHills.total = hills.length;
+    }
+    setStatus("");
+    render();
+  }
+
+  const vpPoint = () => ({ view: true, coord: viewpoint.coord, h: viewpoint.hill ? viewpoint.hill.h : viewpoint.h, name: viewpoint.name, hill: viewpoint.hill });
+
+  // ---- drawing ----
+  function clearDrawing() {
+    linesSrc.clear(); chevSrc.clear(); hillSrc.clear(); labelSrc.clear(); selSrc.clear(); lines = []; shownHills = [];
+    renderReadout();
+  }
+
+  function render() {
+    linesSrc.clear(); chevSrc.clear(); hillSrc.clear(); labelSrc.clear(); vpSrc.clear();
+    const vis = lines.filter((l) => l.visible);
+    dMax = vis.length ? Math.max(...vis.map((l) => l.D)) : 1;
+    dMin = vis.length ? Math.min(...vis.map((l) => l.D)) : 0;
+    if (dMax - dMin < 200) dMin = Math.max(0, dMax - 200);
+    const w = mode === "from" ? 2.4 : 1.6;
+    const lf = [], cf = [];
+    lines.forEach((l) => {
+      if (!l.visible && !(mode === "from" && showBlocked)) return;
+      const f = new ol.Feature({ geometry: new ol.geom.LineString([l.a.coord, l.b.coord]), D: l.visible ? l.D : 1e12 });
+      f.set("line", l);
+      f.setStyle(l.visible ? lineStyle(rampIndex(l.D), w) : blockedStyle);
+      lf.push(f);
+      if (!l.visible) return;
+      const grade = (l.a.h - l.b.h) / l.D, g = Math.abs(grade);
+      if (g < .005) return;
+      const hi = grade > 0 ? l.a : l.b, lo = grade > 0 ? l.b : l.a;
+      const dx = lo.coord[0] - hi.coord[0], dy = lo.coord[1] - hi.coord[1];
+      const len = Math.hypot(dx, dy);
+      const icon = new S.Style({ image: new S.Icon({ src: CHEV[g >= .03 ? 2 : 1], rotation: -Math.atan2(dy, dx), rotateWithView: false }) });
+      const cfeat = new ol.Feature({ geometry: new ol.geom.Point([(hi.coord[0] + lo.coord[0]) / 2, (hi.coord[1] + lo.coord[1]) / 2]) });
+      cfeat.setStyle((feat, res) => (len / res < 80 ? null : icon));
+      cf.push(cfeat);
+    });
+    linesSrc.addFeatures(lf); chevSrc.addFeatures(cf);
+
+    const visibleSet = new Set(mode === "from" ? lines.filter((l) => l.visible).map((l) => l.b) : shownHills);
+    const hf = [], tf = [];
+    shownHills.forEach((h) => {
+      const faded = mode === "from" && !visibleSet.has(h);
+      const f = new ol.Feature({ geometry: new ol.geom.Point(h.coord) });
+      f.set("hill", h);
+      f.setStyle(faded ? HILL_OFF : HILL_ON);
+      hf.push(f);
+      const t = new ol.Feature({ geometry: new ol.geom.Point(h.coord) });
+      t.setStyle(hillLabel(h, faded));
+      tf.push(t);
+    });
+    hillSrc.addFeatures(hf); labelSrc.addFeatures(tf);
+    if (viewpoint && mode === "from") {
+      const f = new ol.Feature({ geometry: new ol.geom.Point(viewpoint.coord) });
+      f.setStyle(vpStyle); vpSrc.addFeature(f);
+    }
+    renderReadout();
+    renderSelection();
+  }
+
+  function renderReadout() {
+    const vis = lines.filter((l) => l.visible);
+    const longest = vis.reduce((m, l) => (l.D > (m ? m.D : 0) ? l : m), null);
+    $("dNear").textContent = vis.length ? fmtD(dMin) : "Near";
+    $("dMax").textContent = vis.length ? fmtD(dMax) : "Far";
+    $("dMid").textContent = vis.length ? fmtD((dMin + dMax) / 2) : "";
+    $("modeAll").setAttribute("aria-pressed", mode === "all");
+    $("modeFrom").setAttribute("aria-pressed", mode === "from");
+    $("blockedBtn").hidden = mode !== "from";
+    $("blockedBtn").setAttribute("aria-pressed", showBlocked);
+    $("uMi").setAttribute("aria-pressed", units === "mi");
+    $("uKm").setAttribute("aria-pressed", units === "km");
+    const meta = $("meta");
+    if (!grid) return;
+    if (mode === "from" && viewpoint) {
+      $("bigLabel").textContent = "Hills in view";
+      $("bigVal").textContent = vis.length;
+      $("bigSmall").textContent = " / " + lines.length;
+      meta.innerHTML = "";
+      const a = document.createElement("div"); a.textContent = "From " + nameOf(vpPoint()) + (viewpoint.h != null ? " (" + fmtH(vpPoint().h) + ")" : "");
+      meta.appendChild(a);
+      if (longest) { const b = document.createElement("div"); b.innerHTML = "Furthest <b></b>"; b.querySelector("b").textContent = nameOf(longest.b) + ", " + fmtD(longest.D); meta.appendChild(b); }
+    } else {
+      $("bigLabel").textContent = "Sight lines";
+      $("bigVal").textContent = vis.length;
+      $("bigSmall").textContent = "";
+      meta.innerHTML = "";
+      const a = document.createElement("div");
+      a.textContent = shownHills.length
+        ? "Between " + shownHills.length + " hills" + (shownHills.capped ? " (the " + MAX_ALL + " most prominent of " + shownHills.total + ")" : "")
+        : "No hills match. Lower the sliders or move the map.";
+      meta.appendChild(a);
+      if (longest) { const b = document.createElement("div"); b.innerHTML = "Longest <b></b>"; b.querySelector("b").textContent = fmtD(longest.D); meta.appendChild(b); }
+    }
+  }
+
+  // ---- selection and profile ----
+  function selectPair(a, b) {
+    selected = { a, b };
+    renderSelection();
+    drawProfile();
+  }
+  function clearSelection() { selected = null; selSrc.clear(); $("profile").hidden = true; }
+
+  function renderSelection() {
+    selSrc.clear();
+    if (!selected) return;
+    const l = lines.find((l) => sameEnds(l, selected));
+    const color = l && l.visible ? RAMP[rampIndex(l.D)] : "#8a948f";
+    const geom = new ol.geom.LineString([selected.a.coord, selected.b.coord]);
+    const f = new ol.Feature({ geometry: geom });
+    f.setStyle([
+      new S.Style({ stroke: new S.Stroke({ color: "rgba(255,255,255,.95)", width: 8, lineCap: "round" }) }),
+      new S.Style({ stroke: new S.Stroke({ color, width: 4, lineCap: "round", lineDash: l && !l.visible ? [6, 6] : undefined }) })
+    ]);
+    selSrc.addFeature(f);
+  }
+  const near = (c1, c2) => Math.abs(c1[0] - c2[0]) < 1 && Math.abs(c1[1] - c2[1]) < 1;
+  const sameEnds = (l, s) => (near(l.a.coord, s.a.coord) && near(l.b.coord, s.b.coord)) || (near(l.a.coord, s.b.coord) && near(l.b.coord, s.a.coord));
+
+  async function drawProfile() {
+    if (!selected || !grid) return;
+    const { a, b } = selected;
+    if (!inGrid(a.coord) || !inGrid(b.coord)) { toast("Both ends need to be on screen to draw the profile."); return; }
+    const pa = mapToPx(a.coord), pb = mapToPx(b.coord);
+    const r = await call("profile", { v: grid.v, ax: pa[0], ay: pa[1], ah: a.view && !a.hill ? null : a.h, bx: pb[0], by: pb[1], bh: b.h });
+    if (!r || selected === null || selected.a !== a || selected.b !== b) return;
+    const visible = r.minC >= 0;
+    $("profile").hidden = false;
+
+    const t = $("pTitle"); t.textContent = "";
+    const ea = document.createElement("em"); ea.textContent = nameOf(a);
+    const eb = document.createElement("em"); eb.textContent = nameOf(b);
+    t.append(ea, " to ", eb);
+
+    $("pSub").innerHTML = "";
+    const pill = document.createElement("span"); pill.className = "pill " + (visible ? "ok" : "no"); pill.textContent = visible ? "In view" : "Hidden";
+    const dd = document.createElement("span"); dd.textContent = fmtD(r.D);
+    $("pSub").append(pill, dd);
+
+    const angle = Math.atan((r.zb - r.za) / r.D - r.D / (2 * REFF)) * 180 / Math.PI;
+    const diff = r.bh - r.ah, grade = Math.abs(diff) / r.D * 100;
+    const stats = [
+      [visible ? "Clearance" : "Blocked",
+        visible ? (r.midC < 1 ? "Only just clears" : "Clears the ground by " + fmtH(r.midC)) + " at " + fmtD(r.midT * r.D)
+                : "Ground " + fmtH(Math.max(1, -r.minC)) + " above the line at " + fmtD(r.minT * r.D)],
+      ["View angle", (angle >= 0 ? "Looking up " : "Looking down ") + Math.abs(angle).toFixed(2) + "°"],
+      ["Height difference", Math.abs(diff) < 1 ? "Level" : fmtH(Math.abs(diff)) + (diff > 0 ? " higher" : " lower")],
+      ["Gradient", grade < .5 ? "Under 0.5%, roughly level" : grade.toFixed(1) + "% " + (diff > 0 ? "uphill" : "downhill") + (grade >= 3 ? " ››" : " ›")]
+    ];
+    $("pStats").innerHTML = "";
+    stats.forEach(([k, v]) => {
+      const d = document.createElement("div"); const dt = document.createElement("dt"); const ddd = document.createElement("dd");
+      dt.textContent = k; ddd.textContent = v; d.append(dt, ddd); $("pStats").appendChild(d);
+    });
+    const look = $("pLook");
+    const target = b.view ? a : b;
+    look.hidden = !!(mode === "from" && viewpoint && near(target.coord, viewpoint.coord));
+    look.textContent = "Look from " + nameOf(target);
+    look.onclick = () => setViewpoint({ coord: target.coord, name: target.name, hill: target.view ? target.hill : target });
+
+    chart(r, visible, selected && lines.find((l) => sameEnds(l, selected)));
+  }
+
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  }
+  let lastProfile = null;
+  function chart(r, visible, line) {
+    lastProfile = [r, visible, line];
+    const svg = $("chart");
+    const Wd = Math.max(240, svg.clientWidth || 320), Hd = 150;
+    const m = { l: 40, r: 8, t: 12, b: 22 };
+    const iw = Wd - m.l - m.r, ih = Hd - m.t - m.b;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < r.g.length; i++) { lo = Math.min(lo, r.g[i]); hi = Math.max(hi, r.g[i]); }
+    hi = Math.max(hi, r.za, r.zb); lo = Math.min(lo, r.za, r.zb);
+    const pad = Math.max(5, (hi - lo) * .12); lo = Math.max(0, lo - pad); hi += pad;
+    const X = (d) => m.l + d / r.D * iw, Y = (h) => m.t + (1 - (h - lo) / (hi - lo)) * ih;
+    const color = visible && line ? RAMP[rampIndex(r.D)] : "#8a948f";
+    let s = "";
+    const ys = niceStep(hi - lo, 3);
+    for (let v = Math.ceil(lo / ys) * ys; v <= hi; v += ys) {
+      s += '<line class="grid" x1="' + m.l + '" x2="' + (Wd - m.r) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '"/>';
+      s += '<text x="' + (m.l - 6) + '" y="' + (Y(v) + 3).toFixed(1) + '" text-anchor="end">' + Math.round(v) + "</text>";
+    }
+    const unitM = units === "mi" ? 1609.344 : 1000, span = r.D / unitM, xs = niceStep(span, 4);
+    for (let v = 0; v <= span + 1e-9; v += xs) {
+      const x = X(v * unitM);
+      s += '<text x="' + x.toFixed(1) + '" y="' + (Hd - 6) + '" text-anchor="' + (v === 0 ? "start" : "middle") + '">' + (+v.toFixed(2)) + (v === 0 ? " " + units : "") + "</text>";
+    }
+    let area = "M" + X(0) + "," + Y(lo);
+    for (let i = 0; i < r.d.length; i++) area += "L" + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1);
+    area += "L" + X(r.D) + "," + Y(lo) + "Z";
+    s += '<path class="ground" d="' + area + '"/>';
+    let edge = "";
+    for (let i = 0; i < r.d.length; i++) edge += (i ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1);
+    s += '<path class="ground-edge" d="' + edge + '"/>';
+    // stretches where ground rises above the sight line
+    let blk = "", on = false;
+    for (let i = 0; i < r.d.length; i++) {
+      const t = r.d[i] / r.D, line = r.za + (r.zb - r.za) * t;
+      if (r.g[i] > line && t > .01 && t < .99) { blk += (on ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1); on = true; } else on = false;
+    }
+    if (blk) s += '<path class="blocked" d="' + blk + '"/>';
+    s += '<line x1="' + X(0) + '" y1="' + Y(r.za).toFixed(1) + '" x2="' + X(r.D) + '" y2="' + Y(r.zb).toFixed(1) + '" stroke="' + color + '" stroke-width="2.5"' + (visible ? "" : ' stroke-dasharray="6 5"') + "/>";
+    if (visible) {
+      const cx = X(r.midT * r.D), ly = Y(r.za + (r.zb - r.za) * r.midT), gy = Y(r.za + (r.zb - r.za) * r.midT - r.midC);
+      s += '<line class="clear" x1="' + cx.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y1="' + ly.toFixed(1) + '" y2="' + gy.toFixed(1) + '"/>';
+      s += '<text class="tag" x="' + (cx + 4).toFixed(1) + '" y="' + (Math.min(ly, gy) - 4).toFixed(1) + '"' + (cx > Wd * .7 ? ' text-anchor="end" dx="-8"' : "") + ">+" + Math.max(0, Math.round(r.midC)) + " m</text>";
+    }
+    s += '<circle cx="' + X(0) + '" cy="' + Y(r.za).toFixed(1) + '" r="4.5" fill="' + ACCENT + '" stroke="#fff" stroke-width="1.5"/>';
+    const bx = X(r.D), by = Y(r.zb);
+    s += '<path d="M' + bx + "," + (by - 6) + "l5.5,9.5h-11z" + '" fill="#fff" stroke="' + INK + '" stroke-width="1.5" stroke-linejoin="round"/>';
+    svg.setAttribute("viewBox", "0 0 " + Wd + " " + Hd);
+    svg.innerHTML = s;
+  }
+
+  // ---- interactions ----
+  map.on("singleclick", (e) => {
+    let hill = null, line = null;
+    map.forEachFeatureAtPixel(e.pixel, (f) => { if (f.get("hill")) { hill = f.get("hill"); return true; } }, { hitTolerance: 10, layerFilter: (l) => l === hillLayer });
+    if (!hill) map.forEachFeatureAtPixel(e.pixel, (f) => { if (f.get("line")) { line = f.get("line"); return true; } }, { hitTolerance: 7, layerFilter: (l) => l === linesLayer });
+    if (hill) {
+      if (mode === "from" && viewpoint) {
+        if (viewpoint.hill === hill) return;
+        selectPair(vpPoint(), hill);
+      } else setViewpoint({ coord: hill.coord, name: hill.name, hill });
+      return;
+    }
+    if (line) { selectPair(line.a, line.b); return; }
+    if (selected) { clearSelection(); return; }
+    setViewpoint({ coord: e.coordinate, name: null, hill: null });
+  });
+
+  function setViewpoint(vp) {
+    viewpoint = vp; mode = "from"; clearSelection();
+    computeLines();
+  }
+
+  $("modeAll").addEventListener("click", () => { if (mode === "all") return; mode = "all"; clearSelection(); computeLines(); });
+  $("modeFrom").addEventListener("click", () => {
+    if (!viewpoint) { toast("Tap a hill, or anywhere on the map, to look from there."); return; }
+    mode = "from"; clearSelection(); computeLines();
+  });
+  $("blockedBtn").addEventListener("click", () => { showBlocked = !showBlocked; pref.set("blocked", showBlocked); render(); });
+  function setUnits(u) { units = u; pref.set("units", u); renderReadout(); if (selected && !$("profile").hidden) drawProfile(); }
+  $("uMi").addEventListener("click", () => setUnits("mi"));
+  $("uKm").addEventListener("click", () => setUnits("km"));
+  $("pClose").addEventListener("click", clearSelection);
+
+  // sliders: squared so the low end gets more travel
+  const H_MAX = 1350, P_MIN = 5, P_MAX = 200;
+  const toH = (v) => Math.round(H_MAX * Math.pow(v / 1000, 2) / 5) * 5;
+  const fromH = (h) => Math.round(1000 * Math.sqrt(h / H_MAX));
+  const toP = (v) => Math.round(P_MIN + (P_MAX - P_MIN) * Math.pow(v / 1000, 2));
+  const fromP = (p) => Math.round(1000 * Math.sqrt((p - P_MIN) / (P_MAX - P_MIN)));
+  let sliderTimer = 0;
+  function syncSliders() {
+    $("minH").value = fromH(minH); $("minP").value = fromP(minP);
+    $("minHVal").textContent = fmtH(minH); $("minPVal").textContent = fmtH(minP);
+    $("minH").style.setProperty("--pct", $("minH").value / 10 + "%");
+    $("minP").style.setProperty("--pct", $("minP").value / 10 + "%");
+  }
+  $("minH").addEventListener("input", (e) => { minH = toH(+e.target.value); pref.set("minH", minH); syncSliders(); clearTimeout(sliderTimer); sliderTimer = setTimeout(computeLines, 120); });
+  $("minP").addEventListener("input", (e) => { minP = toP(+e.target.value); pref.set("minP", minP); syncSliders(); clearTimeout(sliderTimer); sliderTimer = setTimeout(computeLines, 120); });
+  syncSliders();
+
+  // map style
+  const BG_ORDER = ["relief", "topo", "satellite"], BG_NAME = { relief: "Relief", topo: "Topo", satellite: "Satellite" };
+  let bg = pref.get("bg", "relief");
+  function setBg(name) {
+    bg = name; pref.set("bg", bg);
+    BG_ORDER.forEach((k) => BG[k].forEach((l) => l.setVisible(k === bg)));
+    places.setVisible(bg !== "topo");
+    $("bgText").textContent = BG_NAME[bg];
+    $("bgToggle").setAttribute("aria-label", "Map style: " + BG_NAME[bg] + ". Tap to change.");
+  }
+  $("bgToggle").addEventListener("click", () => setBg(BG_ORDER[(BG_ORDER.indexOf(bg) + 1) % 3]));
+  setBg(BG_ORDER.includes(bg) ? bg : "relief");
+
+  // keep the map centre clear of the sheet
+  const sheet = document.querySelector(".sheet");
+  function fitPadding() {
+    const wide = window.matchMedia("(min-width: 900px)").matches;
+    const h = sheet.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--sheet-h", wide ? "0px" : h + "px");
+    map.getView().padding = wide ? [0, 406, 0, 0] : [64, 0, h, 0];
+    if (lastProfile && !$("profile").hidden) chart(...lastProfile);
+  }
+  new ResizeObserver(fitPadding).observe(sheet);
+  window.addEventListener("resize", fitPadding);
+  fitPadding();
+  map.getView().setCenter(ol.proj.fromLonLat([START.lon, START.lat])); // centre in the area left visible by the sheet
+
+  // rescans
+  let scanTimer = 0;
+  function scheduleScan(ms) { clearTimeout(scanTimer); scanTimer = setTimeout(scan, ms == null ? 450 : ms); }
+  map.on("moveend", () => scheduleScan());
+
+  // ---- hill names from OpenStreetMap ----
+  const named = new Map(); const fetchedBoxes = [];
+  function applyNames() {
+    if (!grid || !named.size) return;
+    const maxD = Math.max(300, grid.mPerPx * 3);
+    hillsAll.forEach((h) => { h.name = null; h._nd = Infinity; });
+    named.forEach((n) => {
+      let best = null, bd = maxD;
+      const k = Math.cos(n.lat * Math.PI / 180);
+      for (const h of hillsAll) {
+        const d = Math.hypot(h.coord[0] - n.coord[0], h.coord[1] - n.coord[1]) * k;
+        if (d < bd) { bd = d; best = h; }
+      }
+      if (best && bd < best._nd) { best.name = n.name; best._nd = bd; }
+    });
+    if (viewpoint && viewpoint.hill) viewpoint.name = viewpoint.hill.name;
+  }
+  async function fetchNames(ext) {
+    const sw = ol.proj.toLonLat([ext[0], ext[1]]), ne = ol.proj.toLonLat([ext[2], ext[3]]);
+    const s = Math.floor(sw[1] * 10) / 10, w = Math.floor(sw[0] * 10) / 10, n = Math.ceil(ne[1] * 10) / 10, e = Math.ceil(ne[0] * 10) / 10;
+    if ((n - s) * (e - w) > 6) return;
+    if (fetchedBoxes.some((b) => s >= b[0] && w >= b[1] && n <= b[2] && e <= b[3])) return;
+    const bb = s + "," + w + "," + n + "," + e;
+    const q = '[out:json][timeout:20];(node["natural"="peak"]["name"](' + bb + ');node["natural"="hill"]["name"](' + bb + '););out;';
+    try {
+      const res = await fetch("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(q));
+      if (!res.ok) return;
+      const data = await res.json();
+      fetchedBoxes.push([s, w, n, e]);
+      (data.elements || []).forEach((el) => named.set(el.id, { name: el.tags.name, lat: el.lat, coord: ol.proj.fromLonLat([el.lon, el.lat]) }));
+      applyNames();
+      render();
+      if (selected && !$("profile").hidden) drawProfile();
+    } catch (err) { /* names are optional */ }
+  }
+
+  // ---- search ----
+  let searchTimer = 0, searchCtl = null;
+  $("q").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = $("q").value.trim();
+    if (q.length < 3) { $("results").hidden = true; return; }
+    searchTimer = setTimeout(() => search(q), 300);
+  });
+  $("searchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const first = $("results").querySelector("button:not([disabled])");
+    if (first) first.click(); else if ($("q").value.trim()) search($("q").value.trim());
+  });
+  async function search(q) {
+    if (searchCtl) searchCtl.abort();
+    searchCtl = new AbortController();
+    const [lon, lat] = ol.proj.toLonLat(map.getView().getCenter());
+    const url = "https://photon.komoot.io/api/?limit=6&lang=en&q=" + encodeURIComponent(q) + "&lat=" + lat.toFixed(3) + "&lon=" + lon.toFixed(3);
+    try {
+      const res = await fetch(url, { signal: searchCtl.signal });
+      const data = await res.json();
+      showResults(data.features || []);
+    } catch (err) { if (err.name !== "AbortError") toast("Search isn't reachable right now. Try again in a moment."); }
+  }
+  function showResults(features) {
+    const ul = $("results"); ul.innerHTML = "";
+    if (!features.length) { ul.innerHTML = '<li><button type="button" disabled>No places found</button></li>'; ul.hidden = false; return; }
+    features.forEach((f) => {
+      const p = f.properties || {};
+      const name = p.name || p.street || p.postcode || "Unnamed place";
+      const sub = [p.city !== name ? p.city : null, p.county, p.state, p.country].filter(Boolean).join(", ");
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.type = "button";
+      const strong = document.createElement("span"); strong.textContent = name;
+      const small = document.createElement("small"); small.textContent = sub;
+      b.append(strong, small);
+      b.addEventListener("click", () => {
+        ul.hidden = true; $("q").value = name; $("q").blur();
+        const isPeak = p.osm_value === "peak" || p.osm_value === "hill";
+        map.getView().animate({ center: ol.proj.fromLonLat(f.geometry.coordinates), zoom: isPeak ? 11.5 : Math.max(map.getView().getZoom(), 11), duration: 700 });
+      });
+      li.appendChild(b); ul.appendChild(li);
+    });
+    ul.hidden = false;
+  }
+  document.addEventListener("click", (e) => { if (!e.target.closest(".top")) $("results").hidden = true; });
+
+  // ---- locate ----
+  $("locate").addEventListener("click", () => {
+    if (!navigator.geolocation) { toast("Location isn't available in this browser."); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const c = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
+        viewpoint = { coord: c, name: "Your location", hill: null }; mode = "from"; clearSelection();
+        map.getView().animate({ center: c, zoom: Math.min(Math.max(map.getView().getZoom(), 10.5), 12), duration: 700 });
+      },
+      () => toast("Couldn't get your location. Check location permission for this browser."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+
+  renderReadout();
+  scheduleScan(50);
+  window.__sightline = { state: () => ({ mode, lines: lines.length, visible: lines.filter((l) => l.visible).length, hills: hillsAll.length, shown: shownHills.length, grid, viewpoint: !!viewpoint }), hillPixels: () => shownHills.map((h) => [map.getPixelFromCoordinate(h.coord), h.name, Math.round(h.h)]) };
+})();
+</script>
+</body>
+</html>
