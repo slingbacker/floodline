@@ -24,6 +24,7 @@
   --ground-edge: #a8916a;
   --good: #2f7d4f;
   --block: #c63a2f;
+  --warn: #a5680a;
   --shadow: 0 6px 24px rgba(22, 33, 28, .18);
   --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -34,7 +35,7 @@
   :root:not([data-theme="light"]) {
     --paper: #0f1512; --panel: #17211c; --ink: #e7eee9; --ink-soft: #95a59c;
     --rule: #2b3a33; --accent: #5cbf85; --accent-ink: #0f1512;
-    --ground: #4a4031; --ground-edge: #8c7752; --good: #5cbf85; --block: #ef6a5c;
+    --ground: #4a4031; --ground-edge: #8c7752; --good: #5cbf85; --block: #ef6a5c; --warn: #e3a83a;
     --shadow: 0 6px 24px rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
@@ -42,7 +43,7 @@
 :root[data-theme="dark"] {
   --paper: #0f1512; --panel: #17211c; --ink: #e7eee9; --ink-soft: #95a59c;
   --rule: #2b3a33; --accent: #5cbf85; --accent-ink: #0f1512;
-  --ground: #4a4031; --ground-edge: #8c7752; --good: #5cbf85; --block: #ef6a5c;
+  --ground: #4a4031; --ground-edge: #8c7752; --good: #5cbf85; --block: #ef6a5c; --warn: #e3a83a;
   --shadow: 0 6px 24px rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
@@ -227,6 +228,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .pill.ok { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
 .pill.no { background: color-mix(in srgb, var(--block) 16%, transparent); color: var(--block); }
+.pill.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .sub { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 13px var(--f-mono); color: var(--ink-soft); }
 #chart { width: 100%; height: 150px; display: block; overflow: visible; }
@@ -236,6 +238,7 @@ input[type="range"]::-moz-range-thumb {
 #chart .ground-edge { fill: none; stroke: var(--ground-edge); stroke-width: 1.5; }
 #chart .blocked { fill: none; stroke: var(--block); stroke-width: 3; stroke-linecap: round; }
 #chart .clear { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 2; }
+#chart .fz { fill: var(--accent); opacity: .16; }
 #chart .tag { fill: var(--ink); font-weight: 500; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
 .stats div { min-width: 0; }
@@ -245,6 +248,43 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer;
   border-radius: 9px; height: 36px; padding: 0 12px; font: 600 13px var(--f-body); align-self: flex-start;
 }
+
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+.btn.sm { height: 30px; padding: 0 10px; font-size: 12px; }
+.btn.primary { background: var(--ink); color: var(--panel); }
+#pActions { gap: 8px; }
+#pActions:not(:has(:not([hidden]))) { display: none; }
+
+/* Link planner */
+.linkpanel { display: flex; flex-direction: column; gap: 12px; }
+.ends { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 360px) { .ends { grid-template-columns: 1fr; } }
+.end {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 6px 8px; align-items: center;
+  border: 1px solid var(--rule); border-radius: 12px; padding: 8px 10px; min-width: 0;
+}
+.end.picking { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.end-text { min-width: 0; }
+.end-val { font: 500 13px var(--f-mono); overflow-wrap: anywhere; }
+.end .btn { grid-column: 1 / -1; justify-self: start; }
+.seg.wrap { flex-wrap: wrap; }
+.sugg { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sugg button {
+  width: 100%; text-align: left; cursor: pointer; color: var(--ink); background: transparent;
+  border: 1px solid var(--rule); border-radius: 12px; padding: 10px; font: 14px/1.35 var(--f-body);
+  display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start;
+}
+.sugg button[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.sugg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sugg .num {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--ink); font: 600 13px var(--f-mono);
+}
+.sugg button[aria-pressed="true"] .num { background: var(--ink); color: var(--panel); }
+.sugg b { font-weight: 650; }
+.sugg small { display: block; color: var(--ink-soft); font: 12px/1.4 var(--f-mono); margin-top: 3px; }
+.sugg .tier { display: inline-block; margin-top: 5px; }
+.sugg .empty { color: var(--ink-soft); font-size: 13px; padding: 4px 0; }
 
 details.key { border-top: 1px solid var(--rule); padding-top: 10px; }
 details.key summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); list-style: none; display: flex; align-items: center; gap: 6px; }
@@ -313,7 +353,7 @@ html.sheet-drag .layerbtn { transition: none; }
   </div>
   <div class="status" id="status"></div>
 
-  <div class="ctl">
+  <div class="ctl hillonly">
     <div class="ctl-head"><label class="label" for="minH">Lowest summit</label><span id="minHVal">50 m</span></div>
     <input id="minH" type="range" min="0" max="1000" step="1" value="192">
   </div>
@@ -329,27 +369,74 @@ html.sheet-drag .layerbtn { transition: none; }
     <div class="sub" id="pSub"></div>
     <svg id="chart" role="img" aria-label="Ground profile along the sight line"></svg>
     <dl class="stats" id="pStats"></dl>
-    <button class="btn" type="button" id="pLook" hidden></button>
+    <div class="row" id="pActions">
+      <button class="btn" type="button" id="pLook" hidden></button>
+      <a class="btn" id="pWalk" href="#" target="_blank" rel="noopener" hidden>Walking directions</a>
+      <button class="btn" type="button" id="pCopy" hidden>Copy plan</button>
+    </div>
   </div>
 
   <div class="row">
-    <div class="seg" role="group" aria-label="Which lines to draw">
+    <div class="seg" role="group" aria-label="What to show">
       <button type="button" id="modeAll" aria-pressed="true">All hills</button>
-      <button type="button" id="modeFrom" aria-pressed="false">From viewpoint</button>
+      <button type="button" id="modeFrom" aria-pressed="false">From a spot</button>
+      <button type="button" id="modeLink" aria-pressed="false">Link</button>
     </div>
     <div class="seg" role="group" aria-label="Distance units">
       <button type="button" id="uMi" aria-pressed="true">mi</button>
       <button type="button" id="uKm" aria-pressed="false">km</button>
     </div>
-    <button class="chip" type="button" id="blockedBtn" aria-pressed="false" hidden><i></i>Hidden</button>
+    <button class="chip hillonly" type="button" id="blockedBtn" aria-pressed="false" hidden><i></i>Hidden</button>
   </div>
 
-  <div class="ctl">
+  <div class="linkpanel" id="linkPanel" hidden>
+    <div class="ends">
+      <div class="end">
+        <svg width="22" height="29" viewBox="0 0 30 40" aria-hidden="true"><path d="M15 38S3 24 3 14a12 12 0 0 1 24 0c0 10-12 24-12 24z" fill="#16211c" stroke="#fff" stroke-width="2.5"/><path d="M9 15.5 15 10l6 5.5V21h-4v-4h-4v4H9z" fill="#fff"/></svg>
+        <div class="end-text"><div class="label">You</div><div class="end-val" id="endA">Not placed</div></div>
+        <button class="btn sm" type="button" id="setA">Place</button>
+      </div>
+      <div class="end">
+        <svg width="22" height="29" viewBox="0 0 30 40" aria-hidden="true"><path d="M15 38S3 24 3 14a12 12 0 0 1 24 0c0 10-12 24-12 24z" fill="#2f7d4f" stroke="#fff" stroke-width="2.5"/><path d="M9 15.5 15 10l6 5.5V21h-4v-4h-4v4H9z" fill="#fff"/></svg>
+        <div class="end-text"><div class="label">Them</div><div class="end-val" id="endB">Not placed</div></div>
+        <button class="btn sm" type="button" id="setB">Place</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="label">Signal</span>
+      <div class="seg wrap" role="group" aria-label="Signal" id="sigSeg">
+        <button type="button" data-f="0">Visual</button>
+        <button type="button" data-f="0.446">PMR446</button>
+        <button type="button" data-f="0.145">2 m radio</button>
+        <button type="button" data-f="0.868">LoRa 868</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="ctl">
+        <span class="label">Height held at</span>
+        <div class="seg" role="group" aria-label="Antenna or eye height" id="htSeg">
+          <button type="button" data-h="1.7">1.7 m</button>
+          <button type="button" data-h="5">5 m pole</button>
+          <button type="button" data-h="10">10 m mast</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <span class="label">Each of you will walk up to</span>
+        <div class="seg" role="group" aria-label="Walking distance" id="walkSeg"></div>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="label" id="suggHead">Places that link up</span>
+      <ol class="sugg" id="suggList"></ol>
+    </div>
+  </div>
+
+  <div class="ctl hillonly">
     <div class="ctl-head"><label class="label" for="minP">Hill rises above its surroundings by</label><span id="minPVal">10 m</span></div>
     <input id="minP" type="range" min="0" max="1000" step="1" value="160">
   </div>
 
-  <div class="dkey">
+  <div class="dkey hillonly">
     <div class="dbar" id="dbar"></div>
     <div class="dlabels"><span id="dNear">Near</span><span id="dMid"></span><span id="dMax">Far</span></div>
   </div>
@@ -378,14 +465,17 @@ html.sheet-drag .layerbtn { transition: none; }
       Hills are found in terrain data by <b>prominence</b>: how far a summit rises above the lowest col linking it to higher ground. Sight lines allow for the Earth's curvature and normal atmospheric refraction, with someone 1.7 m tall standing at each end. Trees, buildings and haze aren't included, so real views can be more blocked.
       <span id="gridNote"></span>
     </p>
+    <p class="note">
+      <b>Link</b> looks for high ground within walking distance of each of you, then checks every pair of spots. Radio needs more room than sight: for a strong signal the line should clear 60% of the first <b>Fresnel zone</b>, the football-shaped space around it. At 446 MHz over 8 km that's about 22 m at the midpoint. Radio uses the standard 4/3 Earth radius for bending. <b>Clear</b> means the full zone is free; <b>sight line only</b> means you can see each other but the zone is partly blocked, so radio may be weak. 2 m radio often works with less clearance than this. Walking distances are as the crow flies, so check paths and access on the Topo map before setting off, and do a test call.
+    </p>
   </details>
-  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. Hill names: © OpenStreetMap contributors. Basemap: © Esri, HERE, Garmin.</p>
+  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. Maps and hill names: © OpenStreetMap contributors, OpenTopoMap (CC-BY-SA). Relief and imagery: © Esri.</p>
   </div></div>
 </section>
 
 <button class="layerbtn" id="bgToggle" type="button" aria-label="Change map style">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>
-  <span id="bgText">Relief</span>
+  <span id="bgText">Topo</span>
 </button>
 
 <div class="toast" id="toast" role="status" hidden></div>
@@ -407,6 +497,7 @@ self.onmessage = (ev) => {
     } else if (type === "from") out = fromViewpoint(p);
     else if (type === "all") out = allPairs(p);
     else if (type === "profile") out = profile(p);
+    else if (type === "link") out = linkSearch(p);
     self.postMessage({ id, ok: true, out });
   } catch (err) {
     self.postMessage({ id, ok: false, err: String(err && err.message || err) });
@@ -480,22 +571,81 @@ function findPeaks() {
   return { peaks: new Float32Array(out), mn, mx };
 }
 
-function los(ax, ay, za, bx, by, zb, D, full) {
+// Fresnel factor: 60% of the first Fresnel zone radius (m) = fk * sqrt(d1 * d2), d in metres.
+// r1 = 17.32 * sqrt(d1km * d2km / (fGHz * Dkm))
+function fresnelK(f, D) { return f > 0 ? 0.6 * 17.32 * Math.sqrt(1 / (f * D / 1000)) / 1000 : 0; }
+
+// Returns [clearance incl. Fresnel requirement, where, plain sight clearance].
+// Stops early once the plain sight line is blocked, unless full is set.
+function los(ax, ay, za, bx, by, zb, D, full, f, reff) {
+  reff = reff || REFF; const fk = fresnelK(f || 0, D);
   const pd = Math.hypot(bx - ax, by - ay);
   const steps = Math.max(2, Math.ceil(pd));
   const skip = 1.5 / Math.max(pd, 1e-6);
-  let minC = Infinity, minT = 0.5;
+  let minC = Infinity, minT = 0.5, min0 = Infinity;
   for (let i = 1; i < steps; i++) {
     const t = i / steps;
     if (t < skip || t > 1 - skip) continue;
     const h = sample(ax + (bx - ax) * t, ay + (by - ay) * t);
-    const d = t * D, bulge = d * (D - d) / (2 * REFF);
-    const c = za + (zb - za) * t - (h + bulge);
+    const d = t * D, bulge = d * (D - d) / (2 * reff);
+    const c0 = za + (zb - za) * t - (h + bulge);
+    const c = fk ? c0 - fk * Math.sqrt(d * (D - d)) : c0;
     if (c < minC) { minC = c; minT = t; }
-    if (c < 0 && !full) return [minC, minT];
+    if (c0 < min0) min0 = c0;
+    if (c0 < 0 && !full) return [minC, minT, min0];
   }
-  if (minC === Infinity) minC = 0;
-  return [minC, minT];
+  if (minC === Infinity) { minC = 0; min0 = 0; }
+  return [minC, minT, min0];
+}
+
+// Highest point in each cell of a disc around (x, y): spread-out candidate spots on high ground.
+function candidates(x, y, h, rpx, n) {
+  const W = G.W, Hh = G.H, e = G.e;
+  const out = [{ x, y, h, walk: 0, home: true }];
+  const cell = Math.max(2, rpx * Math.sqrt(Math.PI / n));
+  for (let cy = y - rpx; cy < y + rpx; cy += cell) {
+    for (let cx = x - rpx; cx < x + rpx; cx += cell) {
+      let bx = -1, by = -1, bh = -Infinity;
+      const y0 = Math.max(0, Math.floor(cy)), y1 = Math.min(Hh - 1, Math.floor(cy + cell));
+      const x0 = Math.max(0, Math.floor(cx)), x1 = Math.min(W - 1, Math.floor(cx + cell));
+      for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+        const v = e[yy * W + xx]; if (v > bh) { bh = v; bx = xx; by = yy; }
+      }
+      if (bx < 0) continue;
+      const r = Math.hypot(bx - x, by - y);
+      if (r > rpx || r < 2) continue;
+      out.push({ x: bx, y: by, h: bh, walk: dist(x, y, bx, by), home: false });
+    }
+  }
+  return out;
+}
+
+// Find spot pairs near A and near B that can see (or reach by radio) each other.
+function linkSearch(p) {
+  const f = p.f || 0, reff = f > 0 ? R * 4 / 3 : REFF, H = p.H, MARGIN = 3;
+  const ha = sample(p.ax, p.ay), hb = sample(p.bx, p.by);
+  const D0 = dist(p.ax, p.ay, p.bx, p.by);
+  const d0 = los(p.ax, p.ay, ha + H, p.bx, p.by, hb + H, D0, true, f, reff);
+  const CA = candidates(p.ax, p.ay, ha, p.rpx, p.n), CB = candidates(p.bx, p.by, hb, p.rpx, p.n);
+  const ok = [];
+  for (const a of CA) for (const b of CB) {
+    if (a.home && b.home) continue;
+    const D = dist(a.x, a.y, b.x, b.y);
+    const r = los(a.x, a.y, a.h + H, b.x, b.y, b.h + H, D, false, f, reff);
+    if (r[2] < MARGIN) continue;                       // plain line of sight must clear with a margin
+    const tier = r[0] >= MARGIN ? 0 : 1;              // 0 = fully clear (incl. Fresnel), 1 = sight line only
+    ok.push({ a, b, D, clear: r[0], clear0: r[2], tier, walk: a.walk + b.walk });
+  }
+  // fully clear options: shortest walk first; sight-line-only options: closest to clearing the radio zone first
+  ok.sort((u, v) => u.tier - v.tier || (u.tier
+    ? Math.round(v.clear / 5) - Math.round(u.clear / 5) || u.walk - v.walk
+    : Math.round(u.walk / 100) - Math.round(v.walk / 100) || v.clear - u.clear));
+  const sep = Math.max(3, p.rpx * 0.3), picks = [];
+  for (const o of ok) {
+    if (picks.some((q) => Math.hypot(q.a.x - o.a.x, q.a.y - o.a.y) < sep && Math.hypot(q.b.x - o.b.x, q.b.y - o.b.y) < sep)) continue;
+    picks.push(o); if (picks.length >= 5) break;
+  }
+  return { ha, hb, D0, direct: { clear: d0[0], at: d0[1], clear0: d0[2] }, sugg: picks, nA: CA.length, nB: CB.length };
 }
 
 function fromViewpoint(p) {
@@ -527,30 +677,32 @@ function allPairs(p) {
 }
 
 function profile(p) {
+  const f = p.f || 0, reff = f > 0 ? R * 4 / 3 : REFF, H = p.H == null ? EYE : p.H;
   const ah = p.ah == null ? sample(p.ax, p.ay) : p.ah;
   const bh = p.bh == null ? sample(p.bx, p.by) : p.bh;
   const D = dist(p.ax, p.ay, p.bx, p.by);
-  const za = ah + EYE, zb = bh + EYE;
-  const r = los(p.ax, p.ay, za, p.bx, p.by, zb, D, true);
+  const za = ah + H, zb = bh + H, fk = fresnelK(f, D);
+  const r = los(p.ax, p.ay, za, p.bx, p.by, zb, D, true, f, reff);
   const pd = Math.hypot(p.bx - p.ax, p.by - p.ay);
   const N = Math.max(2, Math.min(360, Math.ceil(pd)));
-  const d = new Float32Array(N + 1), g = new Float32Array(N + 1);
+  const d = new Float32Array(N + 1), g = new Float32Array(N + 1), fz = fk ? new Float32Array(N + 1) : null;
   for (let i = 0; i <= N; i++) {
     const t = i / N, x = p.ax + (p.bx - p.ax) * t, y = p.ay + (p.by - p.ay) * t;
     const dd = t * D;
-    d[i] = dd; g[i] = sample(x, y) + dd * (D - dd) / (2 * REFF);
+    d[i] = dd; g[i] = sample(x, y) + dd * (D - dd) / (2 * reff);
+    if (fz) fz[i] = fk * Math.sqrt(dd * (D - dd));
   }
   // closest approach over the ground between, ignoring the summit domes at each end
   let midC = Infinity, midT = 0.5;
   const steps = Math.max(2, Math.ceil(pd));
   for (let i = 1; i < steps; i++) {
     const t = i / steps; if (t < 0.06 || t > 0.94) continue;
-    const dd = t * D, h = sample(p.ax + (p.bx - p.ax) * t, p.ay + (p.by - p.ay) * t) + dd * (D - dd) / (2 * REFF);
-    const c = za + (zb - za) * t - h;
+    const dd = t * D, h = sample(p.ax + (p.bx - p.ax) * t, p.ay + (p.by - p.ay) * t) + dd * (D - dd) / (2 * reff);
+    const c = za + (zb - za) * t - h - (fk ? fk * Math.sqrt(dd * (D - dd)) : 0);
     if (c < midC) { midC = c; midT = t; }
   }
   if (midC === Infinity) { midC = r[0]; midT = r[1]; }
-  return { D, ah, bh, za, zb, minC: r[0], minT: r[1], midC, midT, d, g };
+  return { D, ah, bh, za, zb, minC: r[0], minT: r[1], min0: r[2], midC, midT, d, g, fz, fMid: fk ? fk * D / 2 : 0 };
 }
 </script>
 
@@ -636,13 +788,18 @@ function profile(p) {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/" + svc + "/MapServer/tile/{z}/{y}/{x}",
     maxZoom, attributions: attr || "Basemap © Esri, HERE, Garmin, © OpenStreetMap contributors"
   });
+  const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors';
   const BG = {
-    relief: [new ol.layer.Tile({ source: esri("Canvas/World_Light_Gray_Base", 16) }),
-             new ol.layer.Tile({ source: esri("Elevation/World_Hillshade", 16, "Hillshade © Esri"), opacity: .42 })],
-    topo: [new ol.layer.Tile({ source: esri("World_Topo_Map", 19), visible: false })],
+    // OpenStreetMap data with contours, hill shading and named peaks: the closest free thing to an OS Explorer map
+    topo: [new ol.layer.Tile({ source: new ol.source.XYZ({
+      url: "https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png", maxZoom: 17,
+      attributions: "Map data " + OSM_ATTR + ", SRTM. Style © <a href=\"https://opentopomap.org\" target=\"_blank\">OpenTopoMap</a> (CC-BY-SA)" }) })],
+    streets: [new ol.layer.Tile({ source: new ol.source.OSM({ attributions: OSM_ATTR }), visible: false })],
+    relief: [new ol.layer.Tile({ source: esri("Canvas/World_Light_Gray_Base", 16), visible: false }),
+             new ol.layer.Tile({ source: esri("Elevation/World_Hillshade", 16, "Hillshade © Esri"), opacity: .42, visible: false })],
     satellite: [new ol.layer.Tile({ source: esri("World_Imagery", 19, "Imagery © Esri, Maxar, Earthstar Geographics"), visible: false })]
   };
-  const places = new ol.layer.Tile({ source: esri("Reference/World_Boundaries_and_Places", 19) });
+  const places = new ol.layer.Tile({ source: esri("Reference/World_Boundaries_and_Places", 19), visible: false });
 
   const linesSrc = new ol.source.Vector(), chevSrc = new ol.source.Vector(), selSrc = new ol.source.Vector();
   const hillSrc = new ol.source.Vector(), labelSrc = new ol.source.Vector(), vpSrc = new ol.source.Vector();
@@ -652,10 +809,14 @@ function profile(p) {
   const hillLayer = new ol.layer.Vector({ source: hillSrc });
   const labelLayer = new ol.layer.Vector({ source: labelSrc, declutter: true });
   const vpLayer = new ol.layer.Vector({ source: vpSrc });
+  const linkSrc = new ol.source.Vector(), pinSrc = new ol.source.Vector();
+  const linkLayer = new ol.layer.Vector({ source: linkSrc, visible: false });
+  const pinLayer = new ol.layer.Vector({ source: pinSrc, visible: false });
+  const HILL_LAYERS = [linesLayer, chevLayer, hillLayer, labelLayer, vpLayer];
 
   const map = new ol.Map({
     target: "map",
-    layers: [...BG.relief, ...BG.topo, ...BG.satellite, places, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer],
+    layers: [...BG.topo, ...BG.streets, ...BG.relief, ...BG.satellite, places, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer, linkLayer, pinLayer],
     controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attributionOptions: { collapsible: false } }),
     view: new ol.View({ center: ol.proj.fromLonLat([START.lon, START.lat]), zoom: START.zoom, minZoom: 6, maxZoom: 16, enableRotation: false })
   });
@@ -665,7 +826,10 @@ function profile(p) {
   const lineStyleCache = {};
   function lineStyle(ci, w) {
     const k = ci + "|" + w;
-    return lineStyleCache[k] || (lineStyleCache[k] = new S.Style({ stroke: new S.Stroke({ color: RAMP[ci], width: w, lineCap: "round" }) }));
+    return lineStyleCache[k] || (lineStyleCache[k] = [
+      new S.Style({ stroke: new S.Stroke({ color: "rgba(255,255,255,.8)", width: w + 2.5, lineCap: "round" }) }),
+      new S.Style({ stroke: new S.Stroke({ color: RAMP[ci], width: w, lineCap: "round" }) })
+    ]);
   }
   const blockedStyle = new S.Style({ stroke: new S.Stroke({ color: "rgba(22,33,28,.45)", width: 1.3, lineDash: [4, 5] }) });
 
@@ -743,10 +907,11 @@ function profile(p) {
   }
 
   // ---- scan ----
-  async function scan() {
+  async function scan(extOverride) {
+    if (!extOverride && mode === "link") return; // link mode scans around the two pins, not the view
     const id = ++scanId;
     const size = map.getSize(); if (!size || !size[0]) return;
-    let ext = map.getView().calculateExtent(size);
+    let ext = extOverride || map.getView().calculateExtent(size);
     if (mode === "from" && viewpoint) ext = ol.extent.extend(ext.slice(), ol.extent.boundingExtent([viewpoint.coord]));
     let z = ZMAX, gx0, gy0, W, H;
     for (; z >= ZMIN; z--) {
@@ -759,6 +924,7 @@ function profile(p) {
     }
     if (z < ZMIN) {
       setStatus("");
+      if (mode === "link") { setStatus("You're too far apart to plan here. Try two places within about 60 miles."); return; }
       $("meta").textContent = "Zoom in to find hills. This area is too big to scan.";
       clearDrawing(); return;
     }
@@ -786,8 +952,8 @@ function profile(p) {
     const v = ++gridV;
     const res = await call("grid", { v, W, H, z, gx0, gy0, e: e.buffer }, [e.buffer]);
     if (id !== scanId) return;
-    const lat = ol.proj.toLonLat(map.getView().getCenter())[1] * Math.PI / 180;
-    grid = { v, z, gx0, gy0, W, H, world, tiles: jobs.length, mPerPx: C / world * Math.cos(lat) };
+    const lat = ol.proj.toLonLat(ol.extent.getCenter(ext))[1] * Math.PI / 180;
+    grid = { v, z, gx0, gy0, W, H, world, tiles: jobs.length, mPerPx: C / world * Math.cos(lat), forLink: !!extOverride };
     const pk = res.peaks; hillsAll = [];
     for (let i = 0; i < pk.length; i += 4) hillsAll.push({ x: pk[i], y: pk[i + 1], h: pk[i + 2], prom: pk[i + 3], coord: null, name: null });
     hillsAll.forEach((h) => (h.coord = pxToMap(h.x, h.y)));
@@ -795,7 +961,7 @@ function profile(p) {
     applyNames();
     if (viewpoint && viewpoint.hill) resnapViewpoint();
     $("gridNote").textContent = " Terrain grid here: about " + Math.round(grid.mPerPx) + " m." + (missing ? " " + missing + " tiles failed to load." : "");
-    await computeLines();
+    if (mode === "link") await computeLink(); else await computeLines();
     fetchNames(ext);
   }
 
@@ -905,11 +1071,31 @@ function profile(p) {
     $("dMid").textContent = vis.length ? fmtD((dMin + dMax) / 2) : "";
     $("modeAll").setAttribute("aria-pressed", mode === "all");
     $("modeFrom").setAttribute("aria-pressed", mode === "from");
+    $("modeLink").setAttribute("aria-pressed", mode === "link");
     $("blockedBtn").hidden = mode !== "from";
     $("blockedBtn").setAttribute("aria-pressed", showBlocked);
     $("uMi").setAttribute("aria-pressed", units === "mi");
     $("uKm").setAttribute("aria-pressed", units === "km");
     const meta = $("meta");
+    if (mode === "link") {
+      $("bigLabel").textContent = "Direct link";
+      $("bigSmall").textContent = "";
+      meta.innerHTML = "";
+      const line = (t, strong) => { const d = document.createElement("div"); if (strong) { d.append(t[0]); const b = document.createElement("b"); b.textContent = t[1]; d.append(b); } else d.textContent = t; meta.appendChild(d); };
+      if (!linkA || !linkB) { $("bigVal").textContent = "–"; line(!linkA ? "Place your pin, then theirs" : "Now place their pin"); return; }
+      if (!linkRes) { $("bigVal").textContent = "…"; line(fmtD(groundDist(linkA, linkB)) + " apart"); return; }
+      $("bigVal").textContent = linkRes.status === "marginal" && sigF > 0 ? "Weak" : STATUS_WORD[linkRes.status];
+      line(fmtD(linkRes.D0) + " apart, " + SIG_NAME[sigF]);
+      const best = linkRes.sugg[0];
+      if (linkRes.status === "clear") line("Works from where you both are");
+      else if (best) {
+        const parts = [];
+        if (!best.a.home) parts.push("you walk " + fmtD(best.a.walk));
+        if (!best.b.home) parts.push("they walk " + fmtD(best.b.walk));
+        line(["Best: ", parts.join(", ")], true);
+      } else line("No fix within " + fmtWalk(walkR));
+      return;
+    }
     if (!grid) return;
     if (mode === "from" && viewpoint) {
       $("bigLabel").textContent = "Hills in view";
@@ -999,6 +1185,7 @@ function profile(p) {
     look.hidden = !!(mode === "from" && viewpoint && near(target.coord, viewpoint.coord));
     look.textContent = "Look from " + nameOf(target);
     look.onclick = () => setViewpoint({ coord: target.coord, name: target.name, hill: target.view ? target.hill : target });
+    $("pWalk").hidden = true; $("pCopy").hidden = true;
 
     chart(r, visible, selected && lines.find((l) => sameEnds(l, selected)));
   }
@@ -1008,8 +1195,8 @@ function profile(p) {
     return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
   }
   let lastProfile = null;
-  function chart(r, visible, line) {
-    lastProfile = [r, visible, line];
+  function chart(r, visible, line, colorOverride) {
+    lastProfile = [r, visible, line, colorOverride];
     const svg = $("chart");
     const Wd = Math.max(240, svg.clientWidth || 320), Hd = 150;
     const m = { l: 40, r: 8, t: 12, b: 22 };
@@ -1019,7 +1206,8 @@ function profile(p) {
     hi = Math.max(hi, r.za, r.zb); lo = Math.min(lo, r.za, r.zb);
     const pad = Math.max(5, (hi - lo) * .12); lo = Math.max(0, lo - pad); hi += pad;
     const X = (d) => m.l + d / r.D * iw, Y = (h) => m.t + (1 - (h - lo) / (hi - lo)) * ih;
-    const color = visible && line ? RAMP[rampIndex(r.D)] : "#8a948f";
+    const color = colorOverride || (visible && line ? RAMP[rampIndex(r.D)] : "#8a948f");
+    const fzAt = (i) => (r.fz ? r.fz[i] : 0);
     let s = "";
     const ys = niceStep(hi - lo, 3);
     for (let v = Math.ceil(lo / ys) * ys; v <= hi; v += ys) {
@@ -1038,16 +1226,31 @@ function profile(p) {
     let edge = "";
     for (let i = 0; i < r.d.length; i++) edge += (i ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1);
     s += '<path class="ground-edge" d="' + edge + '"/>';
-    // stretches where ground rises above the sight line
+    // radio: 60% of the first Fresnel zone around the line
+    if (r.fz) {
+      let up = "", dn = "";
+      for (let i = 0; i < r.d.length; i++) {
+        const t = r.d[i] / r.D, ln = r.za + (r.zb - r.za) * t;
+        up += (i ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(ln + r.fz[i]).toFixed(1);
+      }
+      for (let i = r.d.length - 1; i >= 0; i--) {
+        const t = r.d[i] / r.D, ln = r.za + (r.zb - r.za) * t;
+        dn += "L" + X(r.d[i]).toFixed(1) + "," + Y(ln - r.fz[i]).toFixed(1);
+      }
+      s += '<path class="fz" d="' + up + dn + 'Z"/>';
+    }
+    // stretches where ground rises into the sight line (or the radio zone)
     let blk = "", on = false;
     for (let i = 0; i < r.d.length; i++) {
-      const t = r.d[i] / r.D, line = r.za + (r.zb - r.za) * t;
+      const t = r.d[i] / r.D, line = r.za + (r.zb - r.za) * t - fzAt(i);
       if (r.g[i] > line && t > .01 && t < .99) { blk += (on ? "L" : "M") + X(r.d[i]).toFixed(1) + "," + Y(r.g[i]).toFixed(1); on = true; } else on = false;
     }
     if (blk) s += '<path class="blocked" d="' + blk + '"/>';
     s += '<line x1="' + X(0) + '" y1="' + Y(r.za).toFixed(1) + '" x2="' + X(r.D) + '" y2="' + Y(r.zb).toFixed(1) + '" stroke="' + color + '" stroke-width="2.5"' + (visible ? "" : ' stroke-dasharray="6 5"') + "/>";
-    if (visible) {
-      const cx = X(r.midT * r.D), ly = Y(r.za + (r.zb - r.za) * r.midT), gy = Y(r.za + (r.zb - r.za) * r.midT - r.midC);
+    if (visible && r.midC >= 1) {
+      const fzm = r.fMid ? 2 * r.fMid * Math.sqrt(r.midT * (1 - r.midT)) : 0;
+      const lineAt = r.za + (r.zb - r.za) * r.midT;
+      const cx = X(r.midT * r.D), ly = Y(lineAt - fzm), gy = Y(lineAt - fzm - r.midC);
       s += '<line class="clear" x1="' + cx.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y1="' + ly.toFixed(1) + '" y2="' + gy.toFixed(1) + '"/>';
       s += '<text class="tag" x="' + (cx + 4).toFixed(1) + '" y="' + (Math.min(ly, gy) - 4).toFixed(1) + '"' + (cx > Wd * .7 ? ' text-anchor="end" dx="-8"' : "") + ">+" + Math.max(0, Math.round(r.midC)) + " m</text>";
     }
@@ -1058,8 +1261,370 @@ function profile(p) {
     svg.innerHTML = s;
   }
 
+  // ---- OS grid references: WGS84 -> OSGB36 (Helmert) -> National Grid (Transverse Mercator) ----
+  function osGridRef(lon, lat) {
+    const rad = Math.PI / 180;
+    let a = 6378137, b = 6356752.314245, e2 = 1 - (b * b) / (a * a);
+    let phi = lat * rad, lam = lon * rad;
+    let nu = a / Math.sqrt(1 - e2 * Math.sin(phi) ** 2);
+    const x1 = nu * Math.cos(phi) * Math.cos(lam), y1 = nu * Math.cos(phi) * Math.sin(lam), z1 = (1 - e2) * nu * Math.sin(phi);
+    const tx = -446.448, ty = 125.157, tz = -542.060, s = 1 + 20.4894e-6;
+    const rx = -0.1502 / 3600 * rad, ry = -0.2470 / 3600 * rad, rz = -0.8421 / 3600 * rad;
+    const x2 = tx + x1 * s - y1 * rz + z1 * ry;
+    const y2 = ty + x1 * rz + y1 * s - z1 * rx;
+    const z2 = tz - x1 * ry + y1 * rx + z1 * s;
+    a = 6377563.396; b = 6356256.909; e2 = 1 - (b * b) / (a * a);
+    const p = Math.hypot(x2, y2);
+    phi = Math.atan2(z2, p * (1 - e2));
+    for (let i = 0; i < 10; i++) { nu = a / Math.sqrt(1 - e2 * Math.sin(phi) ** 2); phi = Math.atan2(z2 + e2 * nu * Math.sin(phi), p); }
+    lam = Math.atan2(y2, x2);
+    const F0 = 0.9996012717, phi0 = 49 * rad, lam0 = -2 * rad, N0 = -100000, E0 = 400000;
+    const n = (a - b) / (a + b), n2 = n * n, n3 = n2 * n;
+    const sn = Math.sin(phi), cs = Math.cos(phi), tn = Math.tan(phi);
+    nu = a * F0 / Math.sqrt(1 - e2 * sn * sn);
+    const rho = a * F0 * (1 - e2) / Math.pow(1 - e2 * sn * sn, 1.5), eta2 = nu / rho - 1;
+    const dp = phi - phi0, sp = phi + phi0;
+    const M = b * F0 * ((1 + n + 1.25 * n2 + 1.25 * n3) * dp - (3 * n + 3 * n2 + 21 / 8 * n3) * Math.sin(dp) * Math.cos(sp)
+      + (15 / 8 * n2 + 15 / 8 * n3) * Math.sin(2 * dp) * Math.cos(2 * sp) - 35 / 24 * n3 * Math.sin(3 * dp) * Math.cos(3 * sp));
+    const c3 = cs ** 3, c5 = cs ** 5, t2 = tn * tn, t4 = t2 * t2;
+    const I = M + N0, II = nu / 2 * sn * cs, III = nu / 24 * sn * c3 * (5 - t2 + 9 * eta2), IIIA = nu / 720 * sn * c5 * (61 - 58 * t2 + t4);
+    const IV = nu * cs, V = nu / 6 * c3 * (nu / rho - t2), VI = nu / 120 * c5 * (5 - 18 * t2 + t4 + 14 * eta2 - 58 * t2 * eta2);
+    const dl = lam - lam0;
+    const N = I + II * dl ** 2 + III * dl ** 4 + IIIA * dl ** 6;
+    const E = E0 + IV * dl + V * dl ** 3 + VI * dl ** 5;
+    const e100k = Math.floor(E / 100000), n100k = Math.floor(N / 100000);
+    if (e100k < 0 || e100k > 6 || n100k < 0 || n100k > 12) return null;
+    let l1 = (19 - n100k) - (19 - n100k) % 5 + Math.floor((e100k + 10) / 5);
+    let l2 = (19 - n100k) * 5 % 25 + e100k % 5;
+    if (l1 > 7) l1++; if (l2 > 7) l2++;
+    const pad = (v) => String(Math.floor((v % 100000) / 100)).padStart(3, "0");
+    return String.fromCharCode(65 + l1, 65 + l2) + " " + pad(E) + " " + pad(N);
+  }
+  window.__osGridRef = osGridRef;
+  const inGB = (lon, lat) => lat > 49.8 && lat < 60.9 && lon > -8.2 && lon < 1.9 && !(lat > 53.9 && lat < 55.4 && lon < -5.4);
+  function placeLabel(coord) {
+    const [lon, lat] = ol.proj.toLonLat(coord);
+    const ref = inGB(lon, lat) ? osGridRef(lon, lat) : null;
+    return ref || lat.toFixed(4) + ", " + lon.toFixed(4);
+  }
+  function compass(from, to) {
+    const [l1, p1] = ol.proj.toLonLat(from).map((v) => v * Math.PI / 180), [l2, p2] = ol.proj.toLonLat(to).map((v) => v * Math.PI / 180);
+    const brg = (Math.atan2(Math.sin(l2 - l1) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(l2 - l1)) * 180 / Math.PI + 360) % 360;
+    return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(brg / 45) % 8];
+  }
+  function groundDist(c1, c2) {
+    const [l1, p1] = ol.proj.toLonLat(c1).map((v) => v * Math.PI / 180), [l2, p2] = ol.proj.toLonLat(c2).map((v) => v * Math.PI / 180);
+    const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin((l2 - l1) / 2) ** 2;
+    return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function nameNear(coord, maxD) {
+    let best = null, bd = maxD;
+    named.forEach((n) => { const d = Math.hypot(n.coord[0] - coord[0], n.coord[1] - coord[1]) * Math.cos(n.lat * Math.PI / 180); if (d < bd) { bd = d; best = n.name; } });
+    return best;
+  }
+
+  // ---- link planner ----
+  let linkA = null, linkB = null, linkPick = null, linkRes = null, linkSel = null;
+  let sigF = pref.get("sigF", 0.446), antH = pref.get("antH", 1.7), walkR = pref.get("walkR", 1609.344);
+  const WALKS = { mi: [0.5, 1, 2, 3].map((v) => v * 1609.344), km: [1, 2, 3, 5].map((v) => v * 1000) };
+  const SIG_NAME = { 0: "Visual", 0.446: "PMR446", 0.145: "2 m radio", 0.868: "LoRa 868" };
+  const LCOL = { clear: ACCENT, marginal: "#c98a1a", blocked: "#c63a2f" };
+  const STATUS_WORD = { clear: "Clear", marginal: "Marginal", blocked: "Blocked" };
+  const fmtWalk = (w) => units === "mi" ? +(w / 1609.344).toFixed(1) + " mi" : +(w / 1000).toFixed(1) + " km";
+  let collapseSheet = () => {};
+
+  const PIN_SVG = (color) => "data:image/svg+xml;utf8," + encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='30' height='40' viewBox='0 0 30 40'><path d='M15 38S3 24 3 14a12 12 0 0 1 24 0c0 10-12 24-12 24z' fill='" + color + "' stroke='white' stroke-width='2.5'/><path d='M9 15.5 15 10l6 5.5V21h-4v-4h-4v4H9z' fill='white'/></svg>");
+  const pinStyle = (color, label) => [
+    new S.Style({ image: new S.Icon({ src: PIN_SVG(color), width: 30, height: 40, anchor: [0.5, 1] }) }),
+    new S.Style({ text: new S.Text({ text: label, font: "650 12px Archivo, system-ui, sans-serif", offsetY: 12, fill: new S.Fill({ color: INK }), stroke: new S.Stroke({ color: "rgba(255,255,255,.95)", width: 3 }) }) })
+  ];
+  const PIN_A = pinStyle(INK, "You"), PIN_B = pinStyle(ACCENT, "Them");
+  const spotStyle = (n, sel) => new S.Style({
+    image: new S.Circle({ radius: Math.max(11, 5 + String(n).length * 3.6), fill: new S.Fill({ color: sel ? INK : "#fff" }), stroke: new S.Stroke({ color: INK, width: 2 }) }),
+    text: new S.Text({ text: String(n), font: "600 12px 'IBM Plex Mono', ui-monospace, monospace", fill: new S.Fill({ color: sel ? "#fff" : INK }) })
+  });
+  const walkStyle = new S.Style({ stroke: new S.Stroke({ color: INK, width: 2.2, lineDash: [1, 6], lineCap: "round" }) });
+  function lineFor(kind, sel, sugg) {
+    if (sugg && !sel) return new S.Style({ stroke: new S.Stroke({ color: "rgba(22,33,28,.42)", width: 2 }) });
+    const w = sel ? 4 : 2.6;
+    return [
+      new S.Style({ stroke: new S.Stroke({ color: "rgba(255,255,255,.9)", width: w + 3, lineCap: "round" }) }),
+      new S.Style({ stroke: new S.Stroke({ color: LCOL[kind], width: w, lineCap: "round", lineDash: kind === "blocked" ? [7, 6] : undefined }) })
+    ];
+  }
+
+  const translate = new ol.interaction.Translate({ layers: [pinLayer], hitTolerance: 6 });
+  translate.setActive(false);
+  map.addInteraction(translate);
+  translate.on("translateend", (e) => {
+    e.features.forEach((f) => { const c = f.getGeometry().getCoordinates(); if (f.get("pin") === "A") linkA = c; else linkB = c; });
+    linkRes = null; linkSel = null; clearSelection(); computeLink();
+  });
+
+  function promptLink() {
+    if (mode !== "link") return;
+    if (linkPick === "A") setStatus("Tap the map where you'll be. Drag a pin to fine-tune it.");
+    else if (linkPick === "B") setStatus("Now tap where they'll be.");
+    else if (!linkA || !linkB) setStatus("");
+  }
+  function placePin(which, coord) {
+    if (which === "A") linkA = coord; else linkB = coord;
+    linkPick = which === "A" && !linkB ? "B" : null;
+    linkRes = null; linkSel = null; clearSelection();
+    promptLink();
+    if (linkA && linkB) fitLink();
+    computeLink();
+  }
+  function fitLink() {
+    const lat = ol.proj.toLonLat(linkA)[1] * Math.PI / 180;
+    const ext = ol.extent.buffer(ol.extent.boundingExtent([linkA, linkB]), (walkR * 0.8 + 200) / Math.cos(lat));
+    fitTo([[ext[0], ext[1]], [ext[2], ext[3]]]);
+  }
+  // the view's own padding already keeps the sheet and search bar clear, so only a small margin is added here
+  function fitTo(pts) {
+    map.getView().fit(ol.extent.boundingExtent(pts), { duration: 550, maxZoom: 14, padding: [28, 32, 28, 32] });
+  }
+  function linkExtent() {
+    const lat = ol.proj.toLonLat(linkA)[1] * Math.PI / 180;
+    return ol.extent.buffer(ol.extent.boundingExtent([linkA, linkB]), (walkR * 1.25 + 600) / Math.cos(lat));
+  }
+  function linkCovered() {
+    if (!grid || !grid.forLink) return false;
+    const e = linkExtent();
+    return inGrid([e[0], e[1]]) && inGrid([e[2], e[3]]);
+  }
+
+  async function computeLink() {
+    syncLinkControls(); renderLink(); renderSuggList(); renderReadout();
+    if (mode !== "link" || !linkA || !linkB) return;
+    if (!linkCovered()) { setStatus("Reading terrain around you both", true); scan(linkExtent()); return; }
+    const id = ++losId;
+    setStatus("Checking spots near you both", true);
+    const pa = mapToPx(linkA), pb = mapToPx(linkB);
+    const res = await call("link", { v: grid.v, ax: pa[0], ay: pa[1], bx: pb[0], by: pb[1], H: antH, f: sigF, rpx: walkR / grid.mPerPx, n: 70 });
+    if (id !== losId || !res || mode !== "link") return;
+    const spot = (c) => ({ coord: pxToMap(c.x, c.y), h: c.h, walk: c.walk, home: c.home, name: null });
+    res.sugg = res.sugg.map((s) => Object.assign({}, s, { a: spot(s.a), b: spot(s.b) }));
+    res.status = res.direct.clear0 < 0 ? "blocked" : res.direct.clear >= 3 ? "clear" : "marginal";
+    linkRes = res;
+    nameLinkSpots();
+    linkSel = res.status === "clear" || !res.sugg.length ? -1 : 0;
+    setStatus("");
+    renderLink(); renderSuggList(); renderReadout();
+  }
+  function nameLinkSpots() {
+    if (!linkRes || !grid) return;
+    const maxD = Math.max(250, grid.mPerPx * 3);
+    linkRes.sugg.forEach((s) => [s.a, s.b].forEach((sp) => { if (!sp.home) sp.name = nameNear(sp.coord, maxD); }));
+  }
+
+  function renderLink() {
+    pinSrc.clear(); linkSrc.clear();
+    if (linkA) { const f = new ol.Feature({ geometry: new ol.geom.Point(linkA) }); f.set("pin", "A"); f.setStyle(PIN_A); pinSrc.addFeature(f); }
+    if (linkB) { const f = new ol.Feature({ geometry: new ol.geom.Point(linkB) }); f.set("pin", "B"); f.setStyle(PIN_B); pinSrc.addFeature(f); }
+    if (!linkRes || !linkA || !linkB) return;
+    const later = [];
+    const direct = new ol.Feature({ geometry: new ol.geom.LineString([linkA, linkB]) });
+    direct.set("link", -1); direct.setStyle(lineFor(linkRes.status, linkSel === -1, false));
+    if (linkSel === -1) later.push(direct); else linkSrc.addFeature(direct);
+    const spots = new Map(); // options that share a spot share one marker
+    linkRes.sugg.forEach((s, i) => {
+      const sel = i === linkSel;
+      const L = new ol.Feature({ geometry: new ol.geom.LineString([s.a.coord, s.b.coord]) });
+      L.set("link", i); L.setStyle(lineFor(s.tier ? "marginal" : "clear", sel, true));
+      if (sel) later.push(L); else linkSrc.addFeature(L);
+      [[linkA, s.a, "a"], [linkB, s.b, "b"]].forEach(([home, sp, side]) => {
+        if (sp.home) return;
+        if (sel) { const w = new ol.Feature({ geometry: new ol.geom.LineString([home, sp.coord]) }); w.setStyle(walkStyle); later.push(w); }
+        const key = side + Math.round(sp.coord[0]) + "," + Math.round(sp.coord[1]);
+        const m = spots.get(key) || { coord: sp.coord, nums: [], sel: false };
+        m.nums.push(i); m.sel = m.sel || sel; spots.set(key, m);
+      });
+    });
+    linkSrc.addFeatures(later);
+    const marks = [...spots.values()].sort((u, v) => u.sel - v.sel);
+    marks.forEach((m) => {
+      const f = new ol.Feature({ geometry: new ol.geom.Point(m.coord) });
+      f.set("link", m.sel ? linkSel : m.nums[0]);
+      f.setStyle(spotStyle(m.nums.map((n) => n + 1).join(","), m.sel));
+      linkSrc.addFeature(f);
+    });
+  }
+
+  const HOUSE_NUM = '<svg width="14" height="14" viewBox="6 8 18 15" aria-hidden="true"><path d="M9 15.5 15 10l6 5.5V21h-4v-4h-4v4H9z" fill="currentColor"/></svg>';
+  function sideText(who, sp, home) {
+    if (sp.home) return who === "You" ? "You stay put" : "they stay put";
+    return (who === "You" ? "You walk " : "they walk ") + fmtD(sp.walk) + " " + compass(home, sp.coord) + (sp.name ? " to " + sp.name : "");
+  }
+  function renderSuggList() {
+    const list = $("suggList"); list.innerHTML = "";
+    const empty = (t) => { const li = document.createElement("li"); li.className = "empty"; li.textContent = t; list.appendChild(li); };
+    if (!linkA || !linkB) { $("suggHead").textContent = "Places that link up"; empty("Place both pins to see options."); return; }
+    if (!linkRes) { empty("Working it out…"); return; }
+    $("suggHead").textContent = linkRes.status === "clear" ? "Works from where you are" : "Places that link up";
+    const item = (i, numHtml, title, lines, pillKind, pillText) => {
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.type = "button"; b.setAttribute("aria-pressed", i === linkSel);
+      const num = document.createElement("span"); num.className = "num"; num.innerHTML = numHtml;
+      const body = document.createElement("div");
+      const t = document.createElement("b"); t.textContent = title; body.appendChild(t);
+      lines.forEach((l) => { const s = document.createElement("small"); s.textContent = l; body.appendChild(s); });
+      const pill = document.createElement("span"); pill.className = "pill tier " + pillKind; pill.textContent = pillText; body.appendChild(pill);
+      b.append(num, body);
+      b.addEventListener("click", () => selectLink(i));
+      li.appendChild(b); list.appendChild(li);
+    };
+    const radio = sigF > 0;
+    const pillFor = (kind) => ({ clear: ["ok", "Clear"], marginal: ["warn", radio ? "Sight line only" : "Marginal"], blocked: ["no", "Blocked"] })[kind];
+    const dp = pillFor(linkRes.status);
+    item(-1, HOUSE_NUM, "From where you both are", [fmtD(linkRes.D0) + " apart", (linkRes.status === "blocked" ? "Ground in the way" : (radio ? "Radio zone " : "Sight line ") + (linkRes.direct.clear >= 0 ? "clears by " + fmtH(linkRes.direct.clear) : "short by " + fmtH(-linkRes.direct.clear)))], dp[0], dp[1]);
+    if (!linkRes.sugg.length && linkRes.status !== "clear") {
+      empty("No pair of spots within " + fmtWalk(walkR) + " of you both links up. Try a longer walk, a taller pole" + (radio ? ", or Visual" : "") + ".");
+      return;
+    }
+    linkRes.sugg.forEach((s, i) => {
+      const title = sideText("You", s.a, linkA) + ", " + sideText("Them", s.b, linkB) + ".";
+      const ref = "You " + (s.a.home ? "home" : placeLabel(s.a.coord)) + " · Them " + (s.b.home ? "home" : placeLabel(s.b.coord));
+      const sub = fmtD(s.D) + " link · " + (s.tier ? "sight line clears by " + fmtH(s.clear0) : fmtH(s.clear) + " to spare");
+      const p = pillFor(s.tier ? "marginal" : "clear");
+      item(i, String(i + 1), title, [sub, ref], p[0], p[1]);
+    });
+  }
+
+  function selectLink(i) {
+    linkSel = i;
+    renderLink(); renderSuggList(); expandSheet();
+    // frame the chosen option above (or beside) the sheet
+    const pts = [linkA, linkB];
+    if (i >= 0) pts.push(linkRes.sugg[i].a.coord, linkRes.sugg[i].b.coord);
+    fitTo(pts);
+    linkProfile(i);
+  }
+
+  function planText(i, r) {
+    const A = i < 0 ? { home: true } : linkRes.sugg[i].a, B = i < 0 ? { home: true } : linkRes.sugg[i].b;
+    const where = (sp, home) => sp.home ? "from home" : placeLabel(sp.coord) + " (" + fmtH(sp.h) + (sp.name ? ", " + sp.name : "") + "), " + fmtD(sp.walk) + " " + compass(home, sp.coord) + " of home";
+    return [
+      SIG_NAME[sigF] + " link plan" + (sigF ? ", antenna at " + antH + " m" : ""),
+      "Me: " + where(A, linkA),
+      "You: " + where(B, linkB),
+      fmtD(r.D) + " apart with a clear line of sight (checked with Sightline)."
+    ].join("\n");
+  }
+  function copyText(text) {
+    const done = () => toast("Plan copied. Paste it into a message.");
+    const fallback = () => {
+      const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      ta.remove(); ok ? done() : toast("Couldn't copy. Long-press the grid refs to copy them.");
+    };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  }
+
+  async function linkProfile(i) {
+    if (!linkRes || !grid) return;
+    const A = i < 0 ? { coord: linkA, home: true } : linkRes.sugg[i].a, B = i < 0 ? { coord: linkB, home: true } : linkRes.sugg[i].b;
+    const pa = mapToPx(A.coord), pb = mapToPx(B.coord);
+    const r = await call("profile", { v: grid.v, ax: pa[0], ay: pa[1], ah: null, bx: pb[0], by: pb[1], bh: null, f: sigF, H: antH });
+    if (!r || linkSel !== i || mode !== "link") return;
+    selected = null; selSrc.clear();
+    const radio = sigF > 0;
+    const kind = r.min0 < 0 ? "blocked" : r.minC >= 3 ? "clear" : "marginal";
+    $("profile").hidden = false;
+    $("pTitle").textContent = i < 0 ? "From where you both are" : "Option " + (i + 1);
+    $("pSub").innerHTML = "";
+    const pill = document.createElement("span");
+    pill.className = "pill " + ({ clear: "ok", marginal: "warn", blocked: "no" })[kind];
+    pill.textContent = kind === "marginal" && radio ? "Sight line only" : STATUS_WORD[kind];
+    const dd = document.createElement("span"); dd.textContent = fmtD(r.D) + " · " + SIG_NAME[sigF] + " at " + antH + " m";
+    $("pSub").append(pill, dd);
+    const at = (t) => fmtD(t * r.D) + " from you";
+    const clearance = kind === "blocked"
+      ? "Ground " + fmtH(Math.max(1, -r.min0)) + " above the line, " + at(r.minT)
+      : radio
+        ? (r.midC >= 1 ? fmtH(r.midC) + " to spare around the radio zone" : r.midC >= 0 ? "Only just clears the radio zone, " + at(r.midT) : "Radio zone " + fmtH(Math.max(1, -r.midC)) + " short, " + at(r.midT))
+        : (r.midC < 1 ? "Only just clears, " : "Clears the ground by " + fmtH(r.midC) + ", ") + at(r.midT);
+    const angle = Math.atan((r.zb - r.za) / r.D - r.D / (2 * (radio ? 6371008.8 * 4 / 3 : REFF))) * 180 / Math.PI;
+    const stats = [
+      [kind === "blocked" ? "Blocked" : "Clearance", clearance],
+      radio ? ["Radio zone", "Needs " + fmtH(r.fMid) + " clear at the midpoint"] : ["View angle", (angle >= 0 ? "Looking up " : "Looking down ") + Math.abs(angle).toFixed(2) + "°"],
+      ["You", (A.home ? "Home, " : placeLabel(A.coord) + ", ") + fmtH(r.ah)],
+      ["Them", (B.home ? "Home, " : placeLabel(B.coord) + ", ") + fmtH(r.bh)]
+    ];
+    $("pStats").innerHTML = "";
+    stats.forEach(([k, v]) => {
+      const d = document.createElement("div"), dt = document.createElement("dt"), ddd = document.createElement("dd");
+      dt.textContent = k; ddd.textContent = v; d.append(dt, ddd); $("pStats").appendChild(d);
+    });
+    $("pLook").hidden = true;
+    const walk = $("pWalk");
+    if (!A.home) {
+      const [lon, lat] = ol.proj.toLonLat(A.coord);
+      walk.href = "https://maps.apple.com/?daddr=" + lat.toFixed(5) + "," + lon.toFixed(5) + "&dirflg=w";
+      walk.hidden = false;
+    } else walk.hidden = true;
+    const copy = $("pCopy");
+    copy.hidden = kind === "blocked";
+    copy.onclick = () => copyText(planText(i, r));
+    chart(r, kind !== "blocked", null, LCOL[kind]);
+    const sh = $("sheet");
+    sh.scrollTo({ top: Math.max(0, $("profile").offsetTop - 8), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m; clearSelection();
+    const link = m === "link";
+    HILL_LAYERS.forEach((l) => l.setVisible(!link));
+    linkLayer.setVisible(link); pinLayer.setVisible(link); translate.setActive(link);
+    document.querySelectorAll(".hillonly").forEach((el) => { el.hidden = link; });
+    $("linkPanel").hidden = !link;
+    if (link) {
+      if (!linkA) { linkPick = "A"; collapseSheet(); }
+      promptLink(); computeLink();
+    } else {
+      linkPick = null; setStatus("");
+      if (grid && grid.forLink) scheduleScan(0); else computeLines();
+    }
+    renderReadout();
+  }
+
+  $("setA").addEventListener("click", () => { linkPick = "A"; promptLink(); syncLinkControls(); collapseSheet(); });
+  $("setB").addEventListener("click", () => { linkPick = "B"; promptLink(); syncLinkControls(); collapseSheet(); });
+  $("sigSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; sigF = +b.dataset.f; pref.set("sigF", sigF); linkRes = null; clearSelection(); computeLink(); });
+  $("htSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; antH = +b.dataset.h; pref.set("antH", antH); linkRes = null; clearSelection(); computeLink(); });
+
+  function syncLinkControls() {
+    $("sigSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.f === sigF));
+    $("htSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.h === antH));
+    const ws = WALKS[units];
+    if (!ws.some((w) => Math.abs(w - walkR) < 1)) walkR = ws.reduce((m, w) => (Math.abs(w - walkR) < Math.abs(m - walkR) ? w : m), ws[0]);
+    const seg = $("walkSeg"); seg.innerHTML = "";
+    ws.forEach((w) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = fmtWalk(w);
+      b.setAttribute("aria-pressed", Math.abs(w - walkR) < 1);
+      b.addEventListener("click", () => { walkR = w; pref.set("walkR", w); linkRes = null; clearSelection(); computeLink(); });
+      seg.appendChild(b);
+    });
+    $("endA").textContent = linkA ? placeLabel(linkA) : linkPick === "A" ? "Tap the map" : "Not placed";
+    $("endB").textContent = linkB ? placeLabel(linkB) : linkPick === "B" ? "Tap the map" : "Not placed";
+    $("setA").textContent = linkA ? "Move" : "Place"; $("setB").textContent = linkB ? "Move" : "Place";
+    $("endA").closest(".end").classList.toggle("picking", linkPick === "A");
+    $("endB").closest(".end").classList.toggle("picking", linkPick === "B");
+  }
+
   // ---- interactions ----
   map.on("singleclick", (e) => {
+    if (mode === "link") {
+      if (linkPick) { placePin(linkPick, e.coordinate); return; }
+      let hit = null;
+      map.forEachFeatureAtPixel(e.pixel, (f) => { if (f.get("link") != null) { hit = f.get("link"); return true; } }, { hitTolerance: 8, layerFilter: (l) => l === linkLayer });
+      if (hit != null && linkRes) selectLink(hit);
+      else if (!$("profile").hidden) clearSelection();
+      return;
+    }
     let hill = null, line = null;
     map.forEachFeatureAtPixel(e.pixel, (f) => { if (f.get("hill")) { hill = f.get("hill"); return true; } }, { hitTolerance: 10, layerFilter: (l) => l === hillLayer });
     if (!hill) map.forEachFeatureAtPixel(e.pixel, (f) => { if (f.get("line")) { line = f.get("line"); return true; } }, { hitTolerance: 7, layerFilter: (l) => l === linesLayer });
@@ -1080,13 +1645,25 @@ function profile(p) {
     computeLines();
   }
 
-  $("modeAll").addEventListener("click", () => { if (mode === "all") return; mode = "all"; clearSelection(); computeLines(); });
+  $("modeAll").addEventListener("click", () => setMode("all"));
+  $("modeLink").addEventListener("click", () => setMode("link"));
   $("modeFrom").addEventListener("click", () => {
     if (!viewpoint) { toast("Tap a hill, or anywhere on the map, to look from there."); return; }
     mode = "from"; clearSelection(); computeLines();
   });
   $("blockedBtn").addEventListener("click", () => { showBlocked = !showBlocked; pref.set("blocked", showBlocked); render(); });
-  function setUnits(u) { units = u; pref.set("units", u); renderReadout(); if (selected && !$("profile").hidden) drawProfile(); }
+  function setUnits(u) {
+    units = u; pref.set("units", u);
+    if (mode === "link") {
+      const before = walkR;
+      syncLinkControls();
+      if (Math.abs(walkR - before) > 1) { pref.set("walkR", walkR); linkRes = null; clearSelection(); computeLink(); return; }
+      renderSuggList(); renderReadout();
+      if (!$("profile").hidden && linkSel != null) linkProfile(linkSel);
+      return;
+    }
+    renderReadout(); if (selected && !$("profile").hidden) drawProfile();
+  }
   $("uMi").addEventListener("click", () => setUnits("mi"));
   $("uKm").addEventListener("click", () => setUnits("km"));
   $("pClose").addEventListener("click", clearSelection);
@@ -1109,17 +1686,18 @@ function profile(p) {
   syncSliders();
 
   // map style
-  const BG_ORDER = ["relief", "topo", "satellite"], BG_NAME = { relief: "Relief", topo: "Topo", satellite: "Satellite" };
-  let bg = pref.get("bg", "relief");
+  const BG_ORDER = ["topo", "streets", "relief", "satellite"];
+  const BG_NAME = { topo: "Topo", streets: "Streets", relief: "Relief", satellite: "Satellite" };
+  let bg = pref.get("bg2", "topo");
   function setBg(name) {
-    bg = name; pref.set("bg", bg);
+    bg = name; pref.set("bg2", bg);
     BG_ORDER.forEach((k) => BG[k].forEach((l) => l.setVisible(k === bg)));
-    places.setVisible(bg !== "topo");
+    places.setVisible(bg === "relief" || bg === "satellite");
     $("bgText").textContent = BG_NAME[bg];
     $("bgToggle").setAttribute("aria-label", "Map style: " + BG_NAME[bg] + ". Tap to change.");
   }
-  $("bgToggle").addEventListener("click", () => setBg(BG_ORDER[(BG_ORDER.indexOf(bg) + 1) % 3]));
-  setBg(BG_ORDER.includes(bg) ? bg : "relief");
+  $("bgToggle").addEventListener("click", () => setBg(BG_ORDER[(BG_ORDER.indexOf(bg) + 1) % BG_ORDER.length]));
+  setBg(BG_ORDER.includes(bg) ? bg : "topo");
 
   // ---- bottom sheet (same behaviour as Floodline) ----
   const sheet = $("sheet"), more = $("more");
@@ -1160,6 +1738,7 @@ function profile(p) {
     if (!animate) fitPadding();
   }
   expandSheet = () => { if (collapsed) setCollapsed(false, true); };
+  collapseSheet = () => { if (!collapsed && !wideMQ.matches) setCollapsed(true, true); };
   sheet.addEventListener("transitionend", (e) => {
     if (e.target === sheet && e.propertyName === "transform") { sheet.classList.remove("snapping"); fitPadding(); }
   });
@@ -1263,8 +1842,8 @@ function profile(p) {
       fetchedBoxes.push([s, w, n, e]);
       (data.elements || []).forEach((el) => named.set(el.id, { name: el.tags.name, lat: el.lat, coord: ol.proj.fromLonLat([el.lon, el.lat]) }));
       applyNames();
-      render();
-      if (selected && !$("profile").hidden) drawProfile();
+      if (mode === "link") { nameLinkSpots(); renderSuggList(); }
+      else { render(); if (selected && !$("profile").hidden) drawProfile(); }
     } catch (err) { /* names are optional */ }
   }
 
@@ -1321,6 +1900,11 @@ function profile(p) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const c = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
+        if (mode === "link") {
+          if (!linkB) map.getView().animate({ center: c, zoom: Math.max(map.getView().getZoom(), 12), duration: 700 });
+          placePin("A", c);
+          return;
+        }
         viewpoint = { coord: c, name: "Your location", hill: null }; mode = "from"; clearSelection();
         map.getView().animate({ center: c, zoom: Math.min(Math.max(map.getView().getZoom(), 10.5), 12), duration: 700 });
       },
@@ -1329,9 +1913,16 @@ function profile(p) {
     );
   });
 
+  syncLinkControls();
   renderReadout();
   scheduleScan(50);
-  window.__sightline = { state: () => ({ mode, lines: lines.length, visible: lines.filter((l) => l.visible).length, hills: hillsAll.length, shown: shownHills.length, grid, viewpoint: !!viewpoint }), hillPixels: () => shownHills.map((h) => [map.getPixelFromCoordinate(h.coord), h.name, Math.round(h.h)]) };
+  window.__sightline = {
+    state: () => ({ mode, lines: lines.length, visible: lines.filter((l) => l.visible).length, hills: hillsAll.length, shown: shownHills.length, grid, viewpoint: !!viewpoint,
+      link: linkRes && { status: linkRes.status, D0: Math.round(linkRes.D0), direct: linkRes.direct, n: [linkRes.nA, linkRes.nB], sugg: linkRes.sugg.map((s) => ({ tier: s.tier, walkA: Math.round(s.a.walk), walkB: Math.round(s.b.walk), clear: +s.clear.toFixed(1), clear0: +s.clear0.toFixed(1), D: Math.round(s.D) })) } }),
+    hillPixels: () => shownHills.map((h) => [map.getPixelFromCoordinate(h.coord), h.name, Math.round(h.h)]),
+    lonLatPixel: (lon, lat) => map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, lat])),
+    pad: () => map.getView().padding
+  };
 })();
 </script>
 </body>
