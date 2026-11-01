@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Hampshire Waterways</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg: rgba(20,24,30,.86);
+    --fg: #eef2f6;
+    --mute: #9aa6b2;
+    --line: rgba(255,255,255,.10);
+    --accent: #4aa3ff;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#111;font:14px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg)}
+  #map{position:fixed;inset:0}
+  .glass{background:var(--bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+  #top{position:fixed;z-index:1000;top:calc(10px + var(--safe-t));left:10px;right:10px;display:flex;gap:8px;max-width:520px}
+  #search{flex:1;display:flex;align-items:center;padding:0 6px 0 12px;height:44px}
+  #search input{flex:1;background:none;border:0;outline:0;color:var(--fg);font-size:16px;min-width:0}
+  #search input::placeholder{color:var(--mute)}
+  .btn{appearance:none;border:0;background:none;color:var(--fg);font:inherit;cursor:pointer;padding:8px 10px;border-radius:10px}
+  .btn:active{background:rgba(255,255,255,.08)}
+  .iconbtn{width:44px;height:44px;display:grid;place-items:center;padding:0}
+  #status{position:fixed;z-index:1000;left:50%;transform:translateX(-50%);top:calc(62px + var(--safe-t));padding:8px 12px;font-size:13px;display:none;max-width:calc(100% - 20px);text-align:center}
+  #status .bar{height:3px;background:rgba(255,255,255,.12);border-radius:2px;margin-top:6px;overflow:hidden}
+  #status .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  #panel{position:fixed;z-index:1001;left:0;right:0;bottom:0;max-height:72vh;overflow:auto;-webkit-overflow-scrolling:touch;
+         border-radius:18px 18px 0 0;padding:6px 16px calc(16px + var(--safe-b));transform:translateY(calc(100% - 58px - var(--safe-b)));transition:transform .28s ease}
+  #panel.open{transform:none}
+  #grab{display:flex;align-items:center;justify-content:space-between;height:48px;cursor:pointer;user-select:none}
+  #grab b{font-size:15px;font-weight:600;white-space:nowrap}
+  #grab span{color:var(--mute);font-size:12px;text-align:right;margin-left:12px;line-height:1.3}
+  @media (min-width: 760px){
+    #panel{left:auto;right:12px;top:calc(12px + var(--safe-t));bottom:auto;width:340px;max-height:calc(100vh - 24px);border-radius:16px;transform:none}
+    #panel.closed-desk #body{display:none}
+  }
+  h3{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:16px 0 6px;font-weight:600}
+  .row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .row label{flex:1;display:flex;align-items:center;gap:10px;cursor:pointer}
+  .row small{color:var(--mute);font-size:12px;white-space:nowrap}
+  .sw{width:26px;height:0;border-top:3px solid;flex:none}
+  .dot{width:11px;height:11px;border-radius:50%;flex:none;margin:0 7px;border:1.5px solid #fff}
+  input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
+  input[type=radio]{accent-color:var(--accent)}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg label{padding:6px 10px;border:1px solid var(--line);border-radius:20px;cursor:pointer;font-size:13px}
+  .seg input{display:none}
+  .seg input:checked + span{color:#fff}
+  .seg label:has(input:checked){background:var(--accent);border-color:var(--accent)}
+  .note{color:var(--mute);font-size:12px;margin:6px 0}
+  .act{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .act .btn{background:rgba(255,255,255,.08);padding:9px 12px}
+  .act .btn.primary{background:var(--accent);color:#fff}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  a{color:#7cc0ff}
+  .credits{color:var(--mute);font-size:11px;margin-top:14px;line-height:1.5}
+  /* popups */
+  .leaflet-popup-content-wrapper{background:#1b2027;color:var(--fg);border-radius:12px}
+  .leaflet-popup-tip{background:#1b2027}
+  .leaflet-popup-content{margin:12px 14px;font-size:13px;max-height:50vh;overflow:auto}
+  .pop h4{margin:0 0 4px;font-size:15px}
+  .pop .k{color:var(--mute)}
+  .pop table{border-collapse:collapse;margin:6px 0;width:100%}
+  .pop td{padding:2px 6px 2px 0;vertical-align:top;border-bottom:1px solid var(--line);word-break:break-word}
+  .pop .links{margin-top:8px;display:flex;flex-wrap:wrap;gap:10px}
+  .leaflet-control-attribution{font-size:9px;background:rgba(0,0,0,.45)!important;color:#bbb}
+  .leaflet-control-attribution a{color:#ddd}
+  .leaflet-control-zoom{display:none}
+  #fab .btn{background:var(--bg)}
+  #fab{position:fixed;z-index:1000;right:10px;bottom:calc(72px + var(--safe-b));display:flex;flex-direction:column;gap:8px}
+  @media (min-width:760px){#fab{right:364px;bottom:24px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="top">
+  <form id="search" class="glass" autocomplete="off">
+    <input id="q" type="search" placeholder="Search a river, stream or place" enterkeyhint="search">
+    <button class="btn iconbtn" type="submit" aria-label="Search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    </button>
+  </form>
+</div>
+
+<div id="status" class="glass"><span id="statusText"></span><div class="bar" id="statusBar" hidden><i></i></div></div>
+
+<div id="fab">
+  <button class="btn iconbtn glass" id="locate" aria-label="My location">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+  </button>
+  <button class="btn iconbtn glass" id="home" aria-label="Whole county">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+</div>
+
+<div id="panel" class="glass">
+  <div id="grab"><b>Hampshire waterways</b><span id="summary">Loading rivers…</span></div>
+  <div id="body">
+
+    <h3>Waterways (OpenStreetMap)</h3>
+    <div class="row"><label><input type="checkbox" data-cat="river" checked><span class="sw" data-sw="river"></span>Rivers &amp; tidal channels</label><small data-km="river"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="stream" checked><span class="sw" data-sw="stream"></span>Streams &amp; brooks</label><small data-km="stream"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="leat" checked><span class="sw" data-sw="leat"></span>Mill streams, leats &amp; carriers</label><small data-km="leat"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="drain" checked><span class="sw" data-sw="drain" style="border-top-style:dashed"></span>Drains &amp; ditches</label><small data-km="drain"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="canal" checked><span class="sw" data-sw="canal"></span>Canals &amp; navigations</label><small data-km="canal"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="culvert" checked><span class="sw" style="border-top:3px dashed #8899aa"></span>Culverted / underground</label><small data-km="culvert"></small></div>
+    <div class="row"><label><input type="checkbox" id="boundaryToggle" checked><span class="sw" style="border-top:2px dashed #e0a040"></span>County boundary</label></div>
+    <p class="note">Dotted lines are winterbournes and other intermittent streams. Rivers load for the whole county; smaller streams load as you zoom in, or load everything below.</p>
+    <div class="row"><label><input type="checkbox" id="autoLoad" checked>Auto-load detail when zoomed in</label></div>
+    <div class="act">
+      <button class="btn primary" id="loadAll">Load all of Hampshire</button>
+      <button class="btn" id="loadView">Load this view</button>
+    </div>
+
+    <h3>Springs &amp; wells (OpenStreetMap)</h3>
+    <div class="row"><label><input type="checkbox" data-cat="spring" checked><span class="dot" data-dot="spring"></span>Springs</label><small data-n="spring"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="well" checked><span class="dot" data-dot="well"></span>Wells, pumps &amp; boreholes</label><small data-n="well"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="oldwell" checked><span class="dot" data-dot="oldwell"></span>Historic &amp; disused wells</label><small data-n="oldwell"></small></div>
+    <div class="row"><label><input type="checkbox" data-cat="works" checked><span class="dot" data-dot="works"></span>Waterworks &amp; pumping stations</label><small data-n="works"></small></div>
+
+    <h3>Well &amp; borehole records (BGS)</h3>
+    <div class="row"><label><input type="checkbox" data-bgs="Water.wells">National Well Record Archive</label><small>wells, springs, water boreholes</small></div>
+    <div class="row"><label><input type="checkbox" data-bgs="Borehole.records">All borehole records</label><small>200+ years of logs</small></div>
+    <div class="row"><label><input type="checkbox" data-bgs="Well.water.levels">Groundwater level wells</label><small>monitoring</small></div>
+    <p class="note">BGS dots appear from roughly street-level zoom. Tap a dot for its record and any scanned log.</p>
+
+    <h3>Old Ordnance Survey maps (NLS)</h3>
+    <div class="seg" id="oldMaps">
+      <label><input type="radio" name="old" value="" checked><span>None</span></label>
+      <label><input type="radio" name="old" value="inch1"><span>1-inch 1890s</span></label>
+      <label><input type="radio" name="old" value="in25"><span>25-inch 1890s-1910s</span></label>
+      <label><input type="radio" name="old" value="in6"><span>6-inch 1940s-60s</span></label>
+    </div>
+    <p class="note">The 25-inch sheets mark individual wells (W), pumps (P) and springs (Spr). Zoom right in.</p>
+    <input type="range" id="oldOpacity" min="0" max="100" value="85" aria-label="Old map opacity">
+
+    <h3>Base map</h3>
+    <div class="seg" id="basemaps">
+      <label><input type="radio" name="base" value="light" checked><span>Light</span></label>
+      <label><input type="radio" name="base" value="dark"><span>Dark</span></label>
+      <label><input type="radio" name="base" value="hill"><span>Hillshade</span></label>
+      <label><input type="radio" name="base" value="sat"><span>Satellite</span></label>
+      <label><input type="radio" name="base" value="osm"><span>OSM</span></label>
+    </div>
+
+    <div class="act">
+      <a class="btn" id="nlsLink" href="https://maps.nls.uk/geo/explore/" target="_blank" rel="noopener">Open here in NLS old maps</a>
+      <a class="btn" href="https://mapapps2.bgs.ac.uk/geoindex/home.html?layer=BGSBoreholes" target="_blank" rel="noopener">BGS GeoIndex</a>
+      <button class="btn" id="clearCache">Clear saved data</button>
+    </div>
+
+    <div class="credits">
+      Waterways, springs and wells © OpenStreetMap contributors (ODbL), via Overpass API.
+      Borehole and well records © UKRI / British Geological Survey.
+      Historic OS maps courtesy of the National Library of Scotland.
+      Base maps © CARTO, Esri, OpenStreetMap.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- constants ----------
+const BBOX = { s: 50.70, w: -1.97, n: 51.39, e: -0.72 };      // Hampshire + a little overspill
+const TLAT = 0.10, TLON = 0.14;                                  // detail tile size
+const NI = Math.ceil((BBOX.n - BBOX.s) / TLAT), NJ = Math.ceil((BBOX.e - BBOX.w) / TLON);
+const CACHE_DAYS = 60, CACHE_VER = 'v1:';
+const OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+];
+const BGS_WMS = 'https://map.bgs.ac.uk/arcgis/services/GeoIndex_Onshore/boreholes/MapServer/WMSServer';
+
+const PALETTES = {
+  light: { river:'#1552c0', tidal:'#2a7fa8', canal:'#0e8a8c', stream:'#3a8de6', leat:'#8a4fd6', drain:'#6fb2ee',
+           spring:'#00b5c9', well:'#1b2a6b', oldwell:'#a0602e', works:'#5c6670', bound:'#d08a20' },
+  dark:  { river:'#5fb2ff', tidal:'#57c3e0', canal:'#3fd0c9', stream:'#3f98f5', leat:'#c08cff', drain:'#2f6fae',
+           spring:'#3fe6f5', well:'#f2f6ff', oldwell:'#ffb070', works:'#aab4be', bound:'#f0b040' },
+  sat:   { river:'#4fc3ff', tidal:'#7fdcff', canal:'#5ff0d8', stream:'#7fd3ff', leat:'#ff9df0', drain:'#a6dcff',
+           spring:'#3fe6f5', well:'#ffffff', oldwell:'#ffb070', works:'#dddddd', bound:'#ffc040' }
+};
+const WIDTH = { river:[1.4,2.2,3.2,4.6], tidal:[1.4,2.2,3.2,4.6], canal:[1.2,1.9,2.8,4], stream:[.55,.9,1.5,2.3],
+                leat:[.55,.9,1.5,2.3], drain:[.35,.6,1,1.5] };
+
+// ---------- map ----------
+const map = L.map('map', { zoomControl:false, preferCanvas:true, maxZoom:19, minZoom:7, worldCopyJump:false });
+const canvas = L.canvas({ padding: 0.4, tolerance: 6 });
+const hampBounds = L.latLngBounds([BBOX.s, BBOX.w], [BBOX.n, BBOX.e]);
+map.fitBounds(hampBounds.pad(-0.02));
+map.setMaxBounds(hampBounds.pad(0.6));
+
+const BASES = {
+  light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains:'abcd', maxZoom:19, attribution:'© OpenStreetMap © CARTO' }),
+  dark:  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { subdomains:'abcd', maxZoom:19, attribution:'© OpenStreetMap © CARTO' }),
+  hill:  L.layerGroup([
+           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19, attribution:'Hillshade © Esri' }),
+           L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { subdomains:'abcd', maxZoom:19, opacity:.9 })
+         ]),
+  sat:   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:19, maxZoom:19, attribution:'Imagery © Esri, Maxar, Earthstar' }),
+  osm:   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' })
+};
+const PAL_FOR_BASE = { light:'light', osm:'light', hill:'light', dark:'dark', sat:'sat' };
+let baseKey = 'light', palette = PALETTES.light, baseLayer = BASES.light.addTo(map);
+
+const NLS_ATTR = 'Historic OS maps: <a href="https://maps.nls.uk/" target="_blank">National Library of Scotland</a>';
+const OLD = {
+  inch1: L.tileLayer('https://mapseries-tilesets.s3.amazonaws.com/1inch_2nd_ed/{z}/{x}/{y}.png', { maxNativeZoom:15, maxZoom:19, attribution:NLS_ATTR }),
+  in25:  L.tileLayer('https://mapseries-tilesets.s3.amazonaws.com/25_inch/hampshire/{z}/{x}/{y}.png', { maxNativeZoom:18, maxZoom:19, attribution:NLS_ATTR }),
+  in6:   L.tileLayer('https://mapseries-tilesets.s3.amazonaws.com/os/britain10knatgrid/{z}/{x}/{y}.png', { maxNativeZoom:16, maxZoom:19, attribution:NLS_ATTR })
+};
+let oldLayer = null;
+
+const bgsLayers = {};   // name -> WMS layer
+
+// ---------- data stores ----------
+const CATS = ['river','stream','leat','drain','canal','culvert','spring','well','oldwell','works'];
+const groups = {}; CATS.forEach(c => groups[c] = L.layerGroup().addTo(map));
+const boundaryGroup = L.layerGroup().addTo(map);
+const highlightGroup = L.layerGroup().addTo(map);
+const ways = new Map();     // id -> {cat, culvert, intermittent, layer, tags}
+const points = new Map();
+const km = {}; CATS.forEach(c => km[c] = 0);
+const tileState = new Map(); // key -> 'loading' | 'done'
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const MILLY = /\b(mill|leat|carrier|drawn|hatch|race|main\s*drain|navigation)\b/i;
+
+function zBand(z){ return z < 10 ? 0 : z < 12 ? 1 : z < 14 ? 2 : 3; }
+
+function classifyWay(t){
+  const w = t.waterway;
+  let cat;
+  if (w === 'river') cat = 'river';
+  else if (w === 'tidal_channel') cat = 'river';
+  else if (w === 'canal') cat = (t.usage === 'headrace' || t.usage === 'tailrace' || /mill|leat|carrier/i.test(t.name||'')) ? 'leat' : 'canal';
+  else if (w === 'leat' || w === 'millrace' || w === 'spillway' || w === 'fish_pass' || t.usage === 'headrace' || t.usage === 'tailrace') cat = 'leat';
+  else if (w === 'drain' || w === 'ditch') cat = /mill|leat|carrier/i.test(t.name||'') ? 'leat' : 'drain';
+  else if (w === 'stream' || w === 'brook') cat = /\b(mill|leat|carrier)\b/i.test(t.name||'') ? 'leat' : 'stream';
+  else cat = 'stream';
+  const tidal = w === 'tidal_channel' || t.tidal === 'yes';
+  const culvert = t.tunnel === 'culvert' || t.tunnel === 'yes' || t.culvert === 'yes' || t.location === 'underground';
+  const intermittent = t.intermittent === 'yes' || t.seasonal === 'yes' || t.intermittent === 'seasonal';
+  return { cat, tidal, culvert, intermittent };
+}
+
+function classifyPoint(t){
+  if (t.natural === 'spring' || t.man_made === 'spring_box') return 'spring';
+  if (t.man_made === 'water_works' || t.man_made === 'pumping_station') return 'works';
+  const disused = t['disused:man_made'] === 'water_well' || t['abandoned:man_made'] === 'water_well' ||
+                  t.disused === 'yes' || t.abandoned === 'yes' || /well|pump/i.test(t.historic || '') ||
+                  t.historic === 'yes' || t.heritage;
+  if (disused) return 'oldwell';
+  return 'well';
+}
+
+function wayStyle(rec){
+  const b = zBand(map.getZoom());
+  const key = rec.tidal ? 'tidal' : rec.cat;
+  const color = palette[key] || palette.stream;
+  const weight = (WIDTH[key] || WIDTH.stream)[b];
+  let dashArray = null, opacity = .95;
+  if (rec.cat === 'drain' && b >= 2) dashArray = '4 3';
+  if (rec.intermittent) dashArray = b >= 2 ? '1.5 4' : '1 3';
+  if (rec.culvert) { dashArray = '5 5'; opacity = .55; }
+  return { color, weight, opacity, dashArray, lineCap: rec.intermittent ? 'round' : 'butt', lineJoin:'round' };
+}
+
+function pointStyle(cat){
+  const b = zBand(map.getZoom());
+  const r = [2, 3, 4.5, 6][b];
+  const dark = baseKey === 'dark' || baseKey === 'sat';
+  return { radius: r, color: dark ? '#0b0f14' : '#ffffff', weight: b >= 2 ? 1.5 : 1, fillColor: palette[cat], fillOpacity: 1 };
+}
+
+function lengthM(latlngs){
+  let d = 0; for (let i = 1; i < latlngs.length; i++) d += latlngs[i-1].distanceTo(latlngs[i]); return d;
+}
+
+// ---------- adding data ----------
+function addElements(elements){
+  let added = 0;
+  for (const el of elements){
+    if (el.type === 'way' && el.geometry && el.tags && el.tags.waterway){
+      if (ways.has(el.id)) continue;
+      const t = el.tags;
+      const ll = el.geometry.filter(Boolean).map(g => L.latLng(g.lat, g.lon));
+      if (ll.length < 2) continue;
+      const c = classifyWay(t);
+      const rec = { id: el.id, tags: t, ...c };
+      const group = c.culvert ? 'culvert' : c.cat;
+      rec.group = group;
+      rec.layer = L.polyline(ll, { ...wayStyle(rec), renderer: canvas, interactive: true });
+      rec.layer.on('click', e => { e.originalEvent._hw = true; openWayPopup(rec, e.latlng); });
+      groups[group].addLayer(rec.layer);
+      rec.len = lengthM(ll);
+      km[group] += rec.len;
+      ways.set(el.id, rec);
+      added++;
+    } else if (el.tags && (el.type === 'node' || el.center)){
+      const key = el.type + el.id;
+      if (points.has(key)) continue;
+      const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
+      if (lat == null) continue;
+      const cat = classifyPoint(el.tags);
+      const rec = { id: el.id, type: el.type, tags: el.tags, cat };
+      rec.layer = L.circleMarker([lat, lon], { ...pointStyle(cat), renderer: canvas });
+      rec.layer.on('click', e => { e.originalEvent._hw = true; openPointPopup(rec, e.latlng); });
+      groups[cat].addLayer(rec.layer);
+      km[cat] += 1;
+      points.set(key, rec);
+      added++;
+    }
+  }
+  updateStats();
+  return added;
+}
+
+function restyleAll(){
+  ways.forEach(r => r.layer.setStyle(wayStyle(r)));
+  points.forEach(r => r.layer.setStyle(pointStyle(r.cat)));
+  boundaryGroup.eachLayer(l => l.setStyle({ color: palette.bound }));
+  paintLegend();
+}
+
+function updateStats(){
+  document.querySelectorAll('[data-km]').forEach(el => {
+    const v = km[el.dataset.km]; el.textContent = v ? (v/1000).toFixed(v < 10000 ? 1 : 0) + ' km' : '';
+  });
+  document.querySelectorAll('[data-n]').forEach(el => {
+    const v = km[el.dataset.n]; el.textContent = v ? v.toLocaleString() : '';
+  });
+  const total = ['river','stream','leat','drain','canal','culvert'].reduce((a,c) => a + km[c], 0) / 1000;
+  const pts = km.spring + km.well + km.oldwell + km.works;
+  const done = [...tileState.values()].filter(v => v === 'done').length;
+  $('#summary').textContent = `${Math.round(total).toLocaleString()} km mapped · ${pts.toLocaleString()} springs & wells` + (done ? ` · ${done}/${NI*NJ} areas` : '');
+}
+
+function paintLegend(){
+  document.querySelectorAll('[data-sw]').forEach(el => el.style.borderTopColor = palette[el.dataset.sw]);
+  document.querySelectorAll('[data-dot]').forEach(el => el.style.background = palette[el.dataset.dot]);
+}
+
+// ---------- popups ----------
+function linksFor(latlng, osmType, id){
+  const z = Math.max(map.getZoom(), 16);
+  return `<div class="links">
+    ${id ? `<a href="https://www.openstreetmap.org/${osmType}/${id}" target="_blank" rel="noopener">OSM record</a>` : ''}
+    <a href="https://maps.nls.uk/geo/explore/#zoom=${z}&lat=${latlng.lat.toFixed(5)}&lon=${latlng.lng.toFixed(5)}" target="_blank" rel="noopener">Old maps here</a>
+    <a href="https://www.google.com/maps/search/?api=1&query=${latlng.lat.toFixed(6)},${latlng.lng.toFixed(6)}" target="_blank" rel="noopener">Google Maps</a>
+  </div>`;
+}
+
+const PRETTY = { river:'River', tidal_channel:'Tidal channel', canal:'Canal', stream:'Stream', brook:'Brook', drain:'Drain',
+                 ditch:'Ditch', leat:'Leat', millrace:'Mill race', spillway:'Spillway', fish_pass:'Fish pass' };
+
+function openWayPopup(rec, latlng){
+  const t = rec.tags;
+  const name = t.name || t['name:en'] || t.alt_name || '';
+  const type = PRETTY[t.waterway] || t.waterway;
+  const bits = [];
+  if (rec.intermittent) bits.push('Intermittent / seasonal (winterbourne)');
+  if (rec.culvert) bits.push('Culverted / underground');
+  if (t.tidal === 'yes') bits.push('Tidal');
+  const rows = [];
+  if (t.alt_name && t.alt_name !== name) rows.push(['Also known as', t.alt_name]);
+  if (t.old_name) rows.push(['Old name', t.old_name]);
+  if (t.width) rows.push(['Width', t.width + ' m']);
+  if (t.boat) rows.push(['Boats', t.boat]);
+  if (t.usage) rows.push(['Use', t.usage]);
+  if (t.description) rows.push(['Note', t.description]);
+  if (t.wikipedia) rows.push(['Wikipedia', t.wikipedia]);
+  rows.push(['This section', (rec.len >= 1000 ? (rec.len/1000).toFixed(2) + ' km' : Math.round(rec.len) + ' m')]);
+  const html = `<div class="pop">
+    <h4>${esc(name || 'Unnamed ' + type.toLowerCase())}</h4>
+    <div class="k">${esc(type)}${bits.length ? ' · ' + esc(bits.join(' · ')) : ''}</div>
+    <table>${rows.map(r => `<tr><td class="k">${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>
+    ${name ? `<div class="links"><a href="#" data-trace="${esc(name)}">Trace the whole ${esc(name)}</a></div>` : ''}
+    ${linksFor(latlng, 'way', rec.id)}
+  </div>`;
+  L.popup({ maxWidth: 300 }).setLatLng(latlng).setContent(html).openOn(map);
+}
+
+function openPointPopup(rec, latlng){
+  const t = rec.tags;
+  const label = { spring:'Spring', well:'Well', oldwell:'Historic / disused well', works:'Waterworks' }[rec.cat];
+  let sub = [];
+  if (t.man_made === 'water_well') sub.push('Water well');
+  if (t.man_made === 'borehole') sub.push('Borehole');
+  if (t.man_made === 'pumping_station') sub.push('Pumping station');
+  if (t.pump) sub.push('Pump: ' + t.pump);
+  if (t.historic) sub.push('Historic: ' + t.historic);
+  const skip = new Set(['name','natural','man_made','source','created_by','fixme','note:en']);
+  const rows = Object.entries(t).filter(([k]) => !skip.has(k)).slice(0, 14);
+  const html = `<div class="pop">
+    <h4>${esc(t.name || label)}</h4>
+    <div class="k">${esc([label, ...sub].filter((v,i,a) => a.indexOf(v) === i).join(' · '))}</div>
+    ${rows.length ? `<table>${rows.map(([k,v]) => `<tr><td class="k">${esc(k.replace(/_/g,' '))}</td><td>${esc(v)}</td></tr>`).join('')}</table>` : ''}
+    ${linksFor(latlng, rec.type, rec.id)}
+  </div>`;
+  L.popup({ maxWidth: 300 }).setLatLng(latlng).setContent(html).openOn(map);
+}
+
+map.on('popupopen', e => {
+  const a = e.popup.getElement()?.querySelector('[data-trace]');
+  if (a) a.addEventListener('click', ev => { ev.preventDefault(); map.closePopup(); searchWaterway(a.dataset.trace, true); });
+});
+
+// ---------- status ----------
+let statusTimer, holdUntil = 0;
+function status(msg, { progress = null, sticky = false, hold = false, quiet = false } = {}){
+  const box = $('#status');
+  if (quiet && Date.now() < holdUntil) return;
+  if (hold) holdUntil = Date.now() + 5000;
+  clearTimeout(statusTimer);
+  if (!msg){ box.style.display = 'none'; return; }
+  $('#statusText').textContent = msg;
+  box.style.display = 'block';
+  const bar = $('#statusBar');
+  if (progress == null) bar.hidden = true; else { bar.hidden = false; bar.firstElementChild.style.width = Math.round(progress*100) + '%'; }
+  if (!sticky) statusTimer = setTimeout(() => box.style.display = 'none', 3500);
+}
+
+// ---------- cache (IndexedDB) ----------
+const cache = (() => {
+  let dbp = null;
+  function open(){
+    if (dbp) return dbp;
+    dbp = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open('hampshire-water', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      } catch (e) { rej(e); }
+    });
+    return dbp;
+  }
+  return {
+    async get(k){
+      try {
+        const db = await open();
+        const v = await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(CACHE_VER + k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+        if (v && Date.now() - v.t < CACHE_DAYS * 864e5) return v.d;
+      } catch (e) {}
+      return null;
+    },
+    async set(k, d){
+      try { const db = await open(); db.transaction('kv', 'readwrite').objectStore('kv').put({ t: Date.now(), d }, CACHE_VER + k); } catch (e) {}
+    },
+    async clear(){
+      try { const db = await open(); db.transaction('kv', 'readwrite').objectStore('kv').clear(); } catch (e) {}
+    }
+  };
+})();
+
+// ---------- Overpass ----------
+let epIndex = 0;
+async function overpass(query, { timeoutMs = 150000 } = {}){
+  let lastErr;
+  for (let attempt = 0; attempt < 5; attempt++){
+    const ep = OVERPASS[epIndex % OVERPASS.length];
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(ep, { method:'POST', body: 'data=' + encodeURIComponent(query),
+        headers: { 'Content-Type':'application/x-www-form-urlencoded' }, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (r.status === 429 || r.status === 504 || r.status >= 500){ lastErr = new Error('Overpass busy (' + r.status + ')'); epIndex++; await sleep(1500 * (attempt + 1)); continue; }
+      if (!r.ok) throw new Error('Overpass error ' + r.status);
+      const j = await r.json();
+      if (j.remark && /runtime error|timed out/i.test(j.remark) && !(j.elements || []).length){ lastErr = new Error(j.remark); epIndex++; continue; }
+      return j.elements || [];
+    } catch (e) {
+      clearTimeout(timer); lastErr = e; epIndex++; await sleep(1200 * (attempt + 1));
+    }
+  }
+  throw lastErr || new Error('Overpass failed');
+}
+
+const bb = (s,w,n,e) => `${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)}`;
+const POINT_FILTERS = (b) => `
+  nwr["natural"="spring"](${b});
+  nwr["man_made"~"^(water_well|spring_box|borehole|water_works|pumping_station)$"](${b});
+  nwr["disused:man_made"="water_well"](${b});
+  nwr["abandoned:man_made"="water_well"](${b});
+  nwr["historic"~"well|pump"](${b});`;
+
+async function loadRivers(){
+  const key = 'rivers';
+  let el = await cache.get(key);
+  if (!el){
+    status('Loading Hampshire rivers…', { sticky: true });
+    const b = bb(BBOX.s, BBOX.w, BBOX.n, BBOX.e);
+    el = await overpass(`[out:json][timeout:180];way["waterway"~"^(river|canal|tidal_channel)$"](${b});out tags geom qt;`);
+    cache.set(key, el);
+  }
+  addElements(el);
+  status(`Rivers loaded. Zoom in for streams, or load all of Hampshire.`);
+}
+
+async function loadBoundary(){
+  let el = await cache.get('boundary');
+  if (!el){
+    el = await overpass(`[out:json][timeout:90];rel["name"="Hampshire"]["boundary"~"^(ceremonial|administrative)$"](50.5,-2.2,51.5,-0.6);out geom qt;`);
+    cache.set('boundary', el);
+  }
+  const pick = el.filter(r => r.tags?.boundary === 'ceremonial');
+  const use = pick.length ? pick : el.filter(r => r.tags?.admin_level === '6');
+  for (const r of use){
+    (r.members || []).forEach(m => {
+      if (m.type === 'way' && m.geometry && (m.role === 'outer' || m.role === '')){
+        L.polyline(m.geometry.filter(Boolean).map(g => [g.lat, g.lon]), { renderer: canvas, color: palette.bound, weight: 2, dashArray: '6 6', opacity: .8, interactive: false }).addTo(boundaryGroup);
+      }
+    });
+  }
+}
+
+function tileBounds(i, j){
+  const s = BBOX.s + i * TLAT, w = BBOX.w + j * TLON;
+  return [s, w, Math.min(s + TLAT, BBOX.n), Math.min(w + TLON, BBOX.e)];
+}
+
+async function fetchTile(i, j){
+  const key = `t${i}_${j}`;
+  const cached = await cache.get(key);
+  if (cached) return cached;
+  const [s, w, n, e] = tileBounds(i, j);
+  const b = bb(s, w, n, e);
+  const q = `[out:json][timeout:120];
+    way["waterway"~"^(stream|brook|drain|ditch|leat|millrace|spillway|fish_pass|canal|river|tidal_channel)$"](${b});
+    out tags geom qt;
+    (${POINT_FILTERS(b)});
+    out tags center qt;`;
+  const el = await overpass(q);
+  cache.set(key, el);
+  return el;
+}
+
+// queue with limited concurrency
+const queue = [];
+let active = 0, batchTotal = 0, batchDone = 0;
+function enqueue(i, j){
+  const key = `${i}_${j}`;
+  if (tileState.has(key)) return;
+  tileState.set(key, 'queued');
+  queue.push([i, j]); batchTotal++;
+  pump();
+}
+function pump(){
+  while (active < 2 && queue.length){
+    const [i, j] = queue.shift();
+    const key = `${i}_${j}`;
+    active++;
+    tileState.set(key, 'loading');
+    status(`Loading streams & wells… ${batchDone}/${batchTotal}`, { progress: batchDone / batchTotal, sticky: true, quiet: true });
+    fetchTile(i, j).then(el => {
+      addElements(el);
+      tileState.set(key, 'done');
+    }).catch(err => {
+      tileState.delete(key);
+      console.warn('tile failed', key, err);
+      status('Some areas failed to load (map server busy). Pan or tap "Load this view" to retry.');
+    }).finally(() => {
+      active--; batchDone++;
+      if (!queue.length && !active){
+        status(`Done. ${$('#summary').textContent}`, { quiet: true });
+        batchTotal = batchDone = 0;
+        updateStats();
+      } else {
+        status(`Loading streams & wells… ${batchDone}/${batchTotal}`, { progress: batchDone / batchTotal, sticky: true, quiet: true });
+      }
+      pump();
+    });
+  }
+}
+
+function tilesInView(){
+  const b = map.getBounds();
+  const s = Math.max(b.getSouth(), BBOX.s), n = Math.min(b.getNorth(), BBOX.n - 1e-9);
+  const w = Math.max(b.getWest(), BBOX.w), e = Math.min(b.getEast(), BBOX.e - 1e-9);
+  if (s > n || w > e) return [];
+  const out = [];
+  for (let i = Math.floor((s - BBOX.s)/TLAT); i <= Math.floor((n - BBOX.s)/TLAT); i++)
+    for (let j = Math.floor((w - BBOX.w)/TLON); j <= Math.floor((e - BBOX.w)/TLON); j++)
+      if (i >= 0 && j >= 0 && i < NI && j < NJ) out.push([i, j]);
+  return out;
+}
+
+function loadView(){
+  const t = tilesInView();
+  if (!t.length){ status('This view is outside Hampshire.'); return; }
+  if (t.length > 16){ status('Zoom in a little, or use "Load all of Hampshire".'); return; }
+  t.forEach(([i, j]) => enqueue(i, j));
+}
+
+// ---------- search ----------
+function reEsc(s){ return s.replace(/[.*+?^${}()|[\]\\"]/g, '\\$&'); }
+
+async function searchWaterway(name, exact = false){
+  highlightGroup.clearLayers();
+  const b = bb(BBOX.s - .1, BBOX.w - .15, BBOX.n + .1, BBOX.e + .15);
+  const pat = exact ? `^${reEsc(name)}$` : reEsc(name);
+  status(`Searching for “${name}”…`, { sticky: true });
+  let el;
+  try {
+    el = await overpass(`[out:json][timeout:90];
+      way["waterway"]["name"~"${pat}",i](${b});
+      out tags geom qt;
+      nwr["natural"="spring"]["name"~"${pat}",i](${b});
+      nwr["man_made"="water_well"]["name"~"${pat}",i](${b});
+      out tags center qt;`);
+  } catch (e) { status('Search failed - the map server is busy. Try again in a moment.'); return false; }
+  if (!el.length) return false;
+  addElements(el);
+  const hl = [];
+  for (const x of el){
+    if (x.geometry) hl.push(L.polyline(x.geometry.filter(Boolean).map(g => [g.lat, g.lon]), { renderer: canvas, color:'#ffd23f', weight: 7, opacity: .55, interactive:false }));
+    else { const lat = x.lat ?? x.center?.lat, lon = x.lon ?? x.center?.lon; if (lat != null) hl.push(L.circleMarker([lat, lon], { renderer: canvas, radius: 11, color:'#ffd23f', weight: 3, fill:false, interactive:false })); }
+  }
+  hl.forEach(l => highlightGroup.addLayer(l));
+  const fg = L.featureGroup(hl);
+  map.fitBounds(fg.getBounds().pad(0.08), { maxZoom: 15 });
+  const names = [...new Set(el.map(x => x.tags?.name).filter(Boolean))];
+  const total = el.filter(x => x.geometry).reduce((a, x) => a + lengthM(x.geometry.filter(Boolean).map(g => L.latLng(g.lat, g.lon))), 0);
+  status(`${names.slice(0,3).join(', ')}${names.length > 3 ? ` +${names.length-3} more` : ''}${total ? ` · ${(total/1000).toFixed(1)} km` : ''}`, { hold: true });
+  return true;
+}
+
+async function searchPlace(q){
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&viewbox=${BBOX.w-.3},${BBOX.n+.2},${BBOX.e+.3},${BBOX.s-.2}&bounded=1&q=${encodeURIComponent(q)}`;
+    const r = await fetch(url, { headers: { 'Accept':'application/json' } });
+    const j = await r.json();
+    if (j[0]){
+      const bbx = j[0].boundingbox.map(Number);
+      map.fitBounds([[bbx[0], bbx[2]], [bbx[1], bbx[3]]], { maxZoom: 15 });
+      status(j[0].display_name.split(',').slice(0,2).join(','));
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+$('#search').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = $('#q').value.trim();
+  $('#q').blur();
+  if (!q) { highlightGroup.clearLayers(); return; }
+  const found = await searchWaterway(q);
+  if (!found){
+    if (!(await searchPlace(q))) status(`Nothing found for “${q}”.`);
+  }
+});
+
+// ---------- BGS ----------
+function setBgs(name, on){
+  if (on){
+    if (!bgsLayers[name]) bgsLayers[name] = L.tileLayer.wms(BGS_WMS, {
+      layers: name, format: 'image/png', transparent: true, version: '1.1.1', tileSize: 512, zIndex: 50,
+      attribution: 'Boreholes © UKRI / <a href="https://www.bgs.ac.uk/" target="_blank">BGS</a>'
+    });
+    bgsLayers[name].addTo(map);
+    if (map.getZoom() < 12) status('Zoom in towards street level to see BGS records.');
+  } else if (bgsLayers[name]) map.removeLayer(bgsLayers[name]);
+}
+
+function activeBgs(){ return Object.keys(bgsLayers).filter(k => map.hasLayer(bgsLayers[k])); }
+
+function linkify(text){
+  return esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">open</a>');
+}
+
+function parseFeatureInfo(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const records = [];
+  doc.querySelectorAll('table').forEach(tbl => {
+    const rows = [...tbl.querySelectorAll('tr')].map(tr => [...tr.querySelectorAll('th,td')].map(c => {
+      const a = c.querySelector('a[href]'); return a ? a.getAttribute('href') : c.textContent.trim();
+    }));
+    if (!rows.length) return;
+    const headerish = tbl.querySelector('tr')?.querySelector('th');
+    if (headerish && rows.length > 1 && rows[0].length > 2){
+      const head = rows[0];
+      rows.slice(1).forEach(r => records.push(head.map((h, i) => [h, r[i] ?? ''])));
+    } else {
+      records.push(rows.filter(r => r.length >= 2).map(r => [r[0], r.slice(1).join(' ')]));
+    }
+  });
+  if (!records.length){
+    const txt = (doc.body?.textContent || '').trim();
+    if (txt) records.push([['Info', txt.slice(0, 800)]]);
+  }
+  return records.filter(r => r.length);
+}
+
+async function bgsQuery(latlng){
+  const layers = activeBgs();
+  if (!layers.length) return;
+  const z = map.getZoom();
+  const res = 156543.03392804097 / Math.pow(2, z);
+  const p = L.CRS.EPSG3857.project(latlng);
+  const half = 50.5 * res;
+  const params = new URLSearchParams({
+    SERVICE:'WMS', VERSION:'1.1.1', REQUEST:'GetFeatureInfo', LAYERS: layers.join(','), QUERY_LAYERS: layers.join(','),
+    STYLES:'', SRS:'EPSG:3857', BBOX: [p.x-half, p.y-half, p.x+half, p.y+half].join(','), WIDTH:'101', HEIGHT:'101',
+    X:'50', Y:'50', INFO_FORMAT:'text/html', FEATURE_COUNT:'8', FORMAT:'image/png'
+  });
+  const popup = L.popup({ maxWidth: 320 }).setLatLng(latlng).setContent('<div class="pop">Checking BGS records…</div>').openOn(map);
+  try {
+    const r = await fetch(BGS_WMS + '?' + params.toString());
+    const html = await r.text();
+    const recs = parseFeatureInfo(html);
+    if (!recs.length){ popup.setContent(`<div class="pop">No BGS record at this exact spot. Tap right on a dot.${linksFor(latlng)}</div>`); return; }
+    popup.setContent(`<div class="pop"><h4>BGS records (${recs.length})</h4>${recs.map(rec =>
+      `<table>${rec.filter(([k,v]) => v && !/^(shape|objectid|fid)$/i.test(k)).map(([k,v]) => `<tr><td class="k">${esc(k.replace(/_/g,' '))}</td><td>${linkify(v)}</td></tr>`).join('')}</table>`
+    ).join('')}${linksFor(latlng)}</div>`);
+  } catch (e) {
+    popup.setContent(`<div class="pop">Couldn't read BGS details from here. <a href="https://mapapps2.bgs.ac.uk/geoindex/home.html?layer=BGSBoreholes" target="_blank" rel="noopener">Open BGS GeoIndex</a> and tap the same spot for the record and scanned log.${linksFor(latlng)}</div>`);
+  }
+}
+
+map.on('click', e => {
+  if (e.originalEvent && e.originalEvent._hw) return;
+  if (activeBgs().length) bgsQuery(e.latlng);
+});
+
+// ---------- UI wiring ----------
+document.querySelectorAll('input[data-cat]').forEach(cb => cb.addEventListener('change', () => {
+  const g = groups[cb.dataset.cat];
+  cb.checked ? map.addLayer(g) : map.removeLayer(g);
+}));
+$('#boundaryToggle').addEventListener('change', e => e.target.checked ? map.addLayer(boundaryGroup) : map.removeLayer(boundaryGroup));
+document.querySelectorAll('input[data-bgs]').forEach(cb => cb.addEventListener('change', () => setBgs(cb.dataset.bgs, cb.checked)));
+
+document.querySelectorAll('input[name=base]').forEach(r => r.addEventListener('change', () => {
+  if (!r.checked) return;
+  map.removeLayer(baseLayer);
+  baseKey = r.value; baseLayer = BASES[baseKey].addTo(map);
+  if (baseLayer.bringToBack) baseLayer.bringToBack(); else baseLayer.eachLayer?.(l => l.bringToBack?.());
+  palette = PALETTES[PAL_FOR_BASE[baseKey]];
+  restyleAll();
+}));
+
+let oldErrors = 0;
+document.querySelectorAll('input[name=old]').forEach(r => r.addEventListener('change', () => {
+  if (!r.checked) return;
+  if (oldLayer) map.removeLayer(oldLayer);
+  oldLayer = r.value ? OLD[r.value] : null;
+  oldErrors = 0;
+  if (oldLayer){
+    oldLayer.setOpacity($('#oldOpacity').value / 100).setZIndex(10).addTo(map);
+    if (r.value === 'in25' && map.getZoom() < 13) status('The 25-inch sheets show from about village zoom. Zoom in to see wells and pumps.');
+  }
+}));
+Object.values(OLD).forEach(l => l.on('tileerror', () => { if (++oldErrors === 12) status('No old-map tiles here at this zoom - try another series or zoom level.'); }));
+$('#oldOpacity').addEventListener('input', e => oldLayer && oldLayer.setOpacity(e.target.value / 100));
+
+$('#loadAll').addEventListener('click', () => {
+  const total = NI * NJ;
+  status(`Loading all ${total} areas of Hampshire. First run takes a few minutes; it's saved on this device after.`, { sticky: true, progress: 0 });
+  for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) enqueue(i, j);
+  closePanelOnMobile();
+});
+$('#loadView').addEventListener('click', () => { loadView(); closePanelOnMobile(); });
+$('#clearCache').addEventListener('click', async () => { await cache.clear(); status('Saved data cleared. It will reload fresh next time.'); });
+
+$('#home').addEventListener('click', () => map.fitBounds(hampBounds.pad(-0.02)));
+let youAreHere = null;
+$('#locate').addEventListener('click', () => {
+  map.locate({ setView: true, maxZoom: 15, enableHighAccuracy: true });
+});
+map.on('locationfound', e => {
+  if (youAreHere) map.removeLayer(youAreHere);
+  youAreHere = L.circleMarker(e.latlng, { renderer: canvas, radius: 7, color:'#fff', weight: 3, fillColor:'#ff3b6b', fillOpacity: 1, interactive:false }).addTo(map);
+});
+map.on('locationerror', () => status('Location not available.'));
+
+const panel = $('#panel');
+const isDesk = () => window.matchMedia('(min-width: 760px)').matches;
+$('#grab').addEventListener('click', () => {
+  if (isDesk()) panel.classList.toggle('closed-desk'); else panel.classList.toggle('open');
+});
+function closePanelOnMobile(){ if (!isDesk()) panel.classList.remove('open'); }
+map.on('click', () => closePanelOnMobile());
+
+let lastBand = zBand(map.getZoom());
+map.on('zoomend', () => { const b = zBand(map.getZoom()); if (b !== lastBand){ lastBand = b; restyleAll(); } });
+map.on('moveend', () => {
+  const c = map.getCenter();
+  $('#nlsLink').href = `https://maps.nls.uk/geo/explore/#zoom=${Math.max(map.getZoom(), 12)}&lat=${c.lat.toFixed(5)}&lon=${c.lng.toFixed(5)}`;
+  if ($('#autoLoad').checked && map.getZoom() >= 11){
+    const t = tilesInView();
+    if (t.length && t.length <= 16) t.forEach(([i, j]) => enqueue(i, j));
+  }
+});
+
+// ---------- go ----------
+paintLegend();
+loadRivers().catch(e => { console.warn(e); status('Could not reach the OpenStreetMap data server. Check your connection and reload.', { sticky: true }); });
+loadBoundary().catch(e => console.warn('boundary', e));
+
+window.__hw = { map, ways, points, km, tileState }; // handy for debugging
+})();
+</script>
+</body>
+</html>
