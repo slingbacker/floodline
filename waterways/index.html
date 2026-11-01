@@ -146,11 +146,11 @@
 
     <h3>Base map</h3>
     <div class="seg" id="basemaps">
-      <label><input type="radio" name="base" value="light" checked><span>Light</span></label>
+      <label><input type="radio" name="base" value="osm" checked><span>OSM</span></label>
+      <label><input type="radio" name="base" value="light"><span>Light</span></label>
       <label><input type="radio" name="base" value="dark"><span>Dark</span></label>
       <label><input type="radio" name="base" value="hill"><span>Hillshade</span></label>
       <label><input type="radio" name="base" value="sat"><span>Satellite</span></label>
-      <label><input type="radio" name="base" value="osm"><span>OSM</span></label>
     </div>
 
     <div class="act">
@@ -163,7 +163,7 @@
       Waterways, springs and wells © OpenStreetMap contributors (ODbL), via Overpass API.
       Borehole and well records © UKRI / British Geological Survey.
       Historic OS maps courtesy of the National Library of Scotland.
-      Base maps © CARTO, Esri, OpenStreetMap.
+      Base maps © Esri, OpenStreetMap.
     </div>
   </div>
 </div>
@@ -203,17 +203,23 @@ map.fitBounds(hampBounds.pad(-0.02));
 map.setMaxBounds(hampBounds.pad(0.6));
 
 const BASES = {
-  light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains:'abcd', maxZoom:19, attribution:'© OpenStreetMap © CARTO' }),
-  dark:  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { subdomains:'abcd', maxZoom:19, attribution:'© OpenStreetMap © CARTO' }),
+  light: L.layerGroup([
+           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19, attribution:'Base map © Esri, HERE, Garmin, OpenStreetMap' }),
+           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19 })
+         ]),
+  dark:  L.layerGroup([
+           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19, attribution:'Base map © Esri, HERE, Garmin, OpenStreetMap' }),
+           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19 })
+         ]),
   hill:  L.layerGroup([
            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19, attribution:'Hillshade © Esri' }),
-           L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { subdomains:'abcd', maxZoom:19, opacity:.9 })
+           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:16, maxZoom:19, opacity:.9 })
          ]),
   sat:   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom:19, maxZoom:19, attribution:'Imagery © Esri, Maxar, Earthstar' }),
   osm:   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' })
 };
 const PAL_FOR_BASE = { light:'light', osm:'light', hill:'light', dark:'dark', sat:'sat' };
-let baseKey = 'light', palette = PALETTES.light, baseLayer = BASES.light.addTo(map);
+let baseKey = 'osm', palette = PALETTES.light, baseLayer = BASES.osm.addTo(map);
 
 const NLS_ATTR = 'Historic OS maps: <a href="https://maps.nls.uk/" target="_blank">National Library of Scotland</a>';
 const OLD = {
