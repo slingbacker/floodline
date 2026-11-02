@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1417">
+<title>Timeslide</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --panel: rgba(15, 20, 23, .86);
+    --ink: #e8eef0;
+    --dim: #8fa1a8;
+    --line: rgba(255,255,255,.12);
+    --accent: #e9b44c;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; background: #1a2024; color: var(--ink);
+    font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  #map { position: fixed; inset: 0; background: #1a2024; }
+
+  /* The cross-fade: every tile layer container eases its opacity */
+  .leaflet-layer { transition: opacity .35s ease; }
+
+  /* top bar */
+  #top { position: fixed; z-index: 1000; left: 0; right: 0; top: 0;
+    padding: calc(10px + env(safe-area-inset-top)) 12px 0; display: flex; gap: 8px; pointer-events: none; }
+  #top > * { pointer-events: auto; }
+  #search { flex: 1; display: flex; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); overflow: hidden; }
+  #search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ink);
+    font-size: 16px; padding: 11px 12px; }
+  #search input::placeholder { color: var(--dim); }
+  .btn { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 12px;
+    width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .btn:active { transform: scale(.96); }
+  #search .btn { border: 0; border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  svg { display: block; }
+
+  /* bottom sheet */
+  #sheet { position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0;
+    padding: 6px 16px calc(14px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  @media (min-width: 720px) { #sheet { left: 50%; right: auto; width: 640px; transform: translateX(-50%); } }
+  #grab { width: 100%; height: 22px; display: grid; place-items: center; cursor: pointer; touch-action: none; }
+  #grab i { width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #year { font-size: 44px; font-weight: 600; letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 1; }
+  #blend { color: var(--dim); font-size: 13px; margin-top: 6px; min-height: 18px; }
+  #play { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #1a1405; border: 0; }
+
+  /* slider */
+  #sliderWrap { position: relative; margin: 14px 0 0; padding-bottom: 30px; }
+  #slider { -webkit-appearance: none; appearance: none; width: 100%; height: 34px; margin: 0; background: none; touch-action: none; }
+  #slider::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); }
+  #slider::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); }
+  #slider::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -12px;
+    border-radius: 50%; background: var(--accent); border: 3px solid #14100a; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  #slider::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--accent);
+    border: 3px solid #14100a; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  #ticks { position: absolute; left: 0; right: 0; top: 30px; height: 24px; }
+  #ticks button { position: absolute; transform: translateX(-50%); background: none; border: 0; color: var(--dim);
+    font: inherit; font-size: 12px; padding: 4px 6px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  #ticks button.on { color: var(--ink); }
+
+  .more { overflow: hidden; max-height: 160px; transition: max-height .3s ease, opacity .3s ease; opacity: 1; }
+  #sheet.min .more { max-height: 0; opacity: 0; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { background: none; border: 0; color: var(--dim); font: inherit; font-size: 13px; padding: 8px 14px; cursor: pointer; }
+  .seg button.on { background: rgba(255,255,255,.12); color: var(--ink); }
+  #warn { color: #f0a58a; font-size: 12.5px; margin-top: 10px; min-height: 16px; }
+  .lbl { color: var(--dim); font-size: 13px; }
+
+  .leaflet-control-attribution { font-size: 10px; background: rgba(15,20,23,.7) !important; color: var(--dim) !important; }
+  .leaflet-control-attribution a { color: #b9c6cb !important; }
+  .leaflet-top.leaflet-left { top: calc(62px + env(safe-area-inset-top)); }
+  .leaflet-top .leaflet-control-attribution { margin: 0 0 0 12px; border-radius: 8px; padding: 2px 8px; max-width: 70vw; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="top">
+  <form id="search" autocomplete="off">
+    <input id="q" type="search" placeholder="Search a place" enterkeyhint="search" aria-label="Search a place">
+    <button class="btn" type="submit" aria-label="Search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    </button>
+  </form>
+  <button class="btn" id="locate" aria-label="My location">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+  </button>
+</div>
+
+<div id="sheet">
+  <div id="grab" role="button" aria-label="Expand or minimise controls"><i></i></div>
+  <div class="row">
+    <div>
+      <div id="year">1900</div>
+    </div>
+    <button id="play" aria-label="Play">
+      <svg id="icoPlay" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px"><path d="M7 4.5v15l13-7.5z"/></svg>
+      <svg id="icoPause" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+    </button>
+  </div>
+  <div id="sliderWrap">
+    <input id="slider" type="range" min="1890" max="2026" step="0.05" value="1900" aria-label="Year">
+    <div id="ticks"></div>
+  </div>
+  <div class="more">
+    <div id="blend"></div>
+    <div class="row" style="margin-top:12px">
+      <span class="lbl">Present day shows</span>
+      <div class="seg" id="modernSeg">
+        <button data-m="map" class="on">Map</button>
+        <button data-m="sat">Satellite</button>
+      </div>
+    </div>
+    <div id="warn"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   TIMESLIDE
+   Add, remove or edit map layers in HISTORIC / MODERN below.
+   - year: the year the slider shows this map fully (use the middle of its survey range)
+   - maxNative: highest zoom the tiles really exist at (the map scales up past it)
+   Layers sit in a stack, oldest at the bottom. Moving the slider fades the next
+   layer in over the one beneath it, so a gap in an old map shows the older one through.
+------------------------------------------------------------------ */
+const S3 = 'https://mapseries-tilesets.s3.amazonaws.com/';
+const NLS = 'Historical maps: <a href="https://maps.nls.uk/">National Library of Scotland</a> (CC-BY, OS data)';
+
+const HISTORIC = [
+  { year: 1890, name: 'OS One-Inch (Hills)',      span: '1885-1903', url: S3 + '1inch_2nd_ed/{z}/{x}/{y}.png',       maxNative: 15, attr: NLS },
+  { year: 1900, name: 'OS Six-Inch',              span: '1888-1913', url: S3 + 'os/6inchsecond/{z}/{x}/{y}.png',     maxNative: 17, attr: NLS },
+  { year: 1960, name: 'OS 1:10,560 National Grid', span: '1949-1970', url: S3 + 'os/britain10knatgrid/{z}/{x}/{y}.png', maxNative: 16, attr: NLS },
+];
+const MODERN = {
+  map: { year: 2026, name: 'OpenStreetMap', span: 'today', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxNative: 19,
+         attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' },
+  sat: { year: 2026, name: 'Satellite imagery', span: 'today',
+         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
+         attr: 'Imagery &copy; Esri, Maxar, Earthstar Geographics' },
+};
+
+/* ---------- setup ---------- */
+const TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+const $ = id => document.getElementById(id);
+
+const map = L.map('map', { zoomControl: false, minZoom: 4, maxZoom: 20, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 90 })
+  .setView([51.0632, -1.3080], 14);   // Winchester
+map.attributionControl.setPosition('topleft');
+
+let modernKey = 'map';
+const defs = [...HISTORIC, MODERN.map, MODERN.sat];
+defs.forEach(d => {
+  d.stats = { ok: 0, err: 0 };
+  d.tile = L.tileLayer(d.url, {
+    attribution: d.attr, maxNativeZoom: d.maxNative, maxZoom: 20, opacity: 0,
+    keepBuffer: 4, updateWhenZooming: false, errorTileUrl: TRANSPARENT, crossOrigin: false,
+  });
+  d.tile.on('tileload', () => d.stats.ok++);
+  d.tile.on('tileerror', () => d.stats.err++);
+});
+
+const active = () => [...HISTORIC, MODERN[modernKey]];
+
+function syncLayers() {
+  const act = active();
+  defs.forEach(d => {
+    const on = act.includes(d);
+    if (on && !map.hasLayer(d.tile)) d.tile.addTo(map);
+    if (!on && map.hasLayer(d.tile)) map.removeLayer(d.tile);
+  });
+  act.forEach((d, i) => d.tile.setZIndex(i + 1));
+}
+
+/* ---------- the fade maths ---------- */
+// Hold near each keyframe, then ease across the gap, so the slider feels smooth but still settles on real maps.
+const ease = f => { const t = Math.min(1, Math.max(0, (f - 0.12) / 0.76)); return t * t * (3 - 2 * t); };
+
+function locate(y, act) {
+  if (y <= act[0].year) return { i: 0, f: 0 };
+  if (y >= act[act.length - 1].year) return { i: act.length - 1, f: 0 };
+  let i = 0;
+  while (y >= act[i + 1].year) i++;
+  return { i, f: (y - act[i].year) / (act[i + 1].year - act[i].year) };
+}
+
+function apply(y) {
+  const act = active();
+  const { i, f } = locate(y, act);
+  const e = ease(f);
+  act.forEach((d, k) => {
+    let o = 0;
+    if (k <= i) o = 1;
+    else if (k === i + 1) o = e;
+    d.tile.setOpacity(o);
+  });
+  $('year').textContent = Math.round(y);
+  // blend caption
+  const A = act[i], B = act[i + 1];
+  let txt;
+  if (!B || e < 0.02) txt = `${A.name}, ${A.span}`;
+  else if (e > 0.98) txt = `${B.name}, ${B.span}`;
+  else txt = `${A.name} to ${B.name}, ${Math.round(e * 100)}% blended`;
+  $('blend').textContent = txt;
+  document.querySelectorAll('#ticks button').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.y - y) < 1.5));
+  lastYear = y;
+}
+
+/* ---------- slider + ticks ---------- */
+const slider = $('slider');
+let lastYear = 1900;
+
+function buildSlider() {
+  const act = active();
+  const lo = act[0].year, hi = act[act.length - 1].year;
+  slider.min = lo; slider.max = hi;
+  const v = Math.min(hi, Math.max(lo, lastYear));
+  slider.value = v;
+  const ticks = $('ticks');
+  ticks.innerHTML = '';
+  let lastP = -1;
+  act.forEach(d => {
+    const p0 = (d.year - lo) / (hi - lo);
+    if (lastP >= 0 && p0 - lastP < 0.1) return;   // skip labels that would overlap
+    lastP = p0;
+    const b = document.createElement('button');
+    b.textContent = d.year; b.dataset.y = d.year;
+    const p = (d.year - lo) / (hi - lo);
+    b.style.left = `calc(15px + (100% - 30px) * ${p})`;
+    b.addEventListener('click', () => { stopPlay(); tweenTo(d.year, 900); });
+    ticks.appendChild(b);
+  });
+  apply(v);
+}
+
+slider.addEventListener('input', () => { stopPlay(); cancelTween(); apply(+slider.value); writeHash(); });
+
+/* tween (tap a year label) */
+let tweenId = null;
+function cancelTween() { if (tweenId) cancelAnimationFrame(tweenId); tweenId = null; }
+function tweenTo(target, ms) {
+  cancelTween();
+  const from = +slider.value, t0 = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - t0) / ms);
+    const k = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const y = from + (target - from) * k;
+    slider.value = y; apply(y);
+    if (t < 1) tweenId = requestAnimationFrame(step); else { tweenId = null; writeHash(); }
+  };
+  tweenId = requestAnimationFrame(step);
+}
+
+/* autoplay: sweeps forward, then back */
+let playing = false, playId = null, dir = 1, holdUntil = 0;
+function startPlay() {
+  cancelTween();
+  playing = true; $('icoPlay').style.display = 'none'; $('icoPause').style.display = 'block';
+  let prev = performance.now();
+  const step = now => {
+    if (!playing) return;
+    const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    if (now > holdUntil) {
+      const lo = +slider.min, hi = +slider.max;
+      let y = +slider.value + dir * ((hi - lo) / 16) * dt;   // full sweep in about 16 seconds
+      if (y >= hi) { y = hi; dir = -1; holdUntil = now + 1200; }
+      if (y <= lo) { y = lo; dir = 1; holdUntil = now + 1200; }
+      slider.value = y; apply(y);
+    }
+    playId = requestAnimationFrame(step);
+  };
+  playId = requestAnimationFrame(step);
+}
+function stopPlay() {
+  playing = false; if (playId) cancelAnimationFrame(playId); playId = null;
+  $('icoPlay').style.display = 'block'; $('icoPause').style.display = 'none'; writeHash();
+}
+$('play').addEventListener('click', () => playing ? stopPlay() : startPlay());
+
+/* ---------- modern layer toggle ---------- */
+document.querySelectorAll('#modernSeg button').forEach(b => b.addEventListener('click', () => {
+  modernKey = b.dataset.m;
+  document.querySelectorAll('#modernSeg button').forEach(x => x.classList.toggle('on', x === b));
+  syncLayers(); buildSlider(); writeHash();
+}));
+
+/* ---------- sheet minimise ---------- */
+const sheet = $('sheet');
+const toggleSheet = () => sheet.classList.toggle('min');
+$('grab').addEventListener('click', toggleSheet);
+let ty = null;
+$('grab').addEventListener('touchstart', e => { ty = e.touches[0].clientY; }, { passive: true });
+$('grab').addEventListener('touchend', e => {
+  if (ty === null) return;
+  const d = e.changedTouches[0].clientY - ty; ty = null;
+  if (d > 25) sheet.classList.add('min'); else if (d < -25) sheet.classList.remove('min');
+});
+
+/* ---------- search + locate ---------- */
+$('search').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = $('q').value.trim(); if (!q) return;
+  $('q').blur();
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    const j = await r.json();
+    if (j[0]) map.flyTo([+j[0].lat, +j[0].lon], Math.max(map.getZoom(), 14), { duration: 1.2 });
+    else $('warn').textContent = 'No match for that search.';
+  } catch { $('warn').textContent = 'Search failed, check your connection.'; }
+});
+let me = null;
+$('locate').addEventListener('click', () => {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(p => {
+    const ll = [p.coords.latitude, p.coords.longitude];
+    if (me) me.setLatLng(ll); else me = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 1 }).addTo(map);
+    map.flyTo(ll, Math.max(map.getZoom(), 15), { duration: 1.2 });
+  }, () => { $('warn').textContent = 'Could not get your location.'; });
+});
+
+/* ---------- shareable view in the URL: #lat,lng,zoom,year,modern ---------- */
+function writeHash() {
+  const c = map.getCenter();
+  const h = `#${c.lat.toFixed(5)},${c.lng.toFixed(5)},${map.getZoom()},${(+slider.value).toFixed(1)},${modernKey}`;
+  history.replaceState(null, '', h);
+}
+function readHash() {
+  const p = location.hash.slice(1).split(',');
+  if (p.length >= 4 && p.slice(0, 4).every(v => v !== '' && !isNaN(+v))) {
+    map.setView([+p[0], +p[1]], +p[2], { animate: false });
+    lastYear = +p[3];
+    if (p[4] === 'sat') {
+      modernKey = 'sat';
+      document.querySelectorAll('#modernSeg button').forEach(x => x.classList.toggle('on', x.dataset.m === 'sat'));
+    }
+  }
+}
+
+/* ---------- coverage warning: tells you if a layer returns nothing for this view ---------- */
+let warnTimer = null;
+function checkCoverage() {
+  defs.forEach(d => { d.stats = { ok: 0, err: 0 }; });
+  clearTimeout(warnTimer);
+  warnTimer = setTimeout(() => {
+    const bad = active().filter(d => d.tile.options.opacity > 0.5 && d.stats.err > 3 && d.stats.ok === 0);
+    $('warn').textContent = bad.length ? `No tiles for ${bad.map(d => d.name).join(', ')} in this view (outside coverage, or zoom too high).` : '';
+  }, 3000);
+}
+map.on('moveend', () => { writeHash(); checkCoverage(); });
+
+/* ---------- start ---------- */
+readHash();
+syncLayers();
+buildSlider();
+checkCoverage();
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  if (e.key === ' ') { e.preventDefault(); playing ? stopPlay() : startPlay(); }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { stopPlay(); const y = +slider.value + (e.key === 'ArrowRight' ? 1 : -1) * 2; slider.value = y; apply(+slider.value); }
+});
+</script>
+</body>
+</html>
