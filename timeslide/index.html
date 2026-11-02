@@ -100,7 +100,7 @@
   <div id="grab" role="button" aria-label="Expand or minimise controls"><i></i></div>
   <div class="row">
     <div>
-      <div id="year">1900</div>
+      <div id="year">1903</div>
     </div>
     <button id="play" aria-label="Play">
       <svg id="icoPlay" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px"><path d="M7 4.5v15l13-7.5z"/></svg>
@@ -108,7 +108,7 @@
     </button>
   </div>
   <div id="sliderWrap">
-    <input id="slider" type="range" min="1890" max="2026" step="0.05" value="1900" aria-label="Year">
+    <input id="slider" type="range" min="1903" max="2026" step="0.05" value="1903" aria-label="Year">
     <div id="ticks"></div>
   </div>
   <div class="more">
@@ -138,8 +138,9 @@ const S3 = 'https://mapseries-tilesets.s3.amazonaws.com/';
 const NLS = 'Historical maps: <a href="https://maps.nls.uk/">National Library of Scotland</a> (CC-BY, OS data)';
 
 const HISTORIC = [
-  { year: 1890, name: 'OS One-Inch (Hills)',      span: '1885-1903', url: S3 + '1inch_2nd_ed/{z}/{x}/{y}.png',       maxNative: 15, attr: NLS },
-  { year: 1900, name: 'OS Six-Inch',              span: '1888-1913', url: S3 + 'os/6inchsecond/{z}/{x}/{y}.png',     maxNative: 17, attr: NLS },
+  { year: 1903, name: 'OS 25-inch Hampshire',     span: '1892-1914', url: S3 + '25_inch/hampshire/{z}/{x}/{y}.png',   maxNative: 17, attr: NLS },
+  { year: 1942, name: 'War Office 1:25,000',      span: '1940-43',   url: S3 + 'gsgs3906/{z}/{x}/{y}.png',            maxNative: 16, attr: NLS },
+  { year: 1947, name: 'RAF air photos',           span: '1944-50',   url: 'https://geo.nls.uk/maps/air-photos/{z}/{x}/{y}.png', maxNative: 16, attr: NLS },
   { year: 1960, name: 'OS 1:10,560 National Grid', span: '1949-1970', url: S3 + 'os/britain10knatgrid/{z}/{x}/{y}.png', maxNative: 16, attr: NLS },
 ];
 const MODERN = {
@@ -218,7 +219,7 @@ function apply(y) {
 
 /* ---------- slider + ticks ---------- */
 const slider = $('slider');
-let lastYear = 1900;
+let lastYear = 1903;
 
 function buildSlider() {
   const act = active();
