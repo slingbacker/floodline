@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root {
-    --panel: rgba(15, 20, 23, .86);
+    --panel: rgba(15, 20, 23, .94);
     --ink: #e8eef0;
     --dim: #8fa1a8;
     --line: rgba(255,255,255,.12);
@@ -29,13 +29,12 @@
     padding: calc(10px + env(safe-area-inset-top)) 12px 0; display: flex; gap: 8px; pointer-events: none; }
   #top > * { pointer-events: auto; }
   #search { flex: 1; display: flex; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); overflow: hidden; }
+    border-radius: 12px; overflow: hidden; }
   #search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ink);
     font-size: 16px; padding: 11px 12px; }
   #search input::placeholder { color: var(--dim); }
   .btn { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 12px;
-    width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer;
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+    width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; }
   .btn:active { transform: scale(.96); }
   #search .btn { border: 0; border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   svg { display: block; }
@@ -44,7 +43,7 @@
   #sheet { position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0;
     padding: 6px 16px calc(14px + env(safe-area-inset-bottom));
     background: var(--panel); border-top: 1px solid var(--line);
-    border-radius: 18px 18px 0 0; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    border-radius: 18px 18px 0 0; }
   @media (min-width: 720px) { #sheet { left: 50%; right: auto; width: 640px; transform: translateX(-50%); } }
   #grab { width: 100%; height: 22px; display: grid; place-items: center; cursor: pointer; touch-action: none; }
   #grab i { width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); }
@@ -155,7 +154,7 @@ const MODERN = {
 const TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 const $ = id => document.getElementById(id);
 
-const map = L.map('map', { zoomControl: false, minZoom: 4, maxZoom: 20, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 90 })
+const map = L.map('map', { zoomControl: false, fadeAnimation: false, markerZoomAnimation: false, minZoom: 4, maxZoom: 20, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 90 })
   .setView([51.0632, -1.3080], 14);   // Winchester
 map.attributionControl.setPosition('topleft');
 
@@ -165,7 +164,7 @@ defs.forEach(d => {
   d.stats = { ok: 0, err: 0 };
   d.tile = L.tileLayer(d.url, {
     attribution: d.attr, maxNativeZoom: d.maxNative, maxZoom: 20, opacity: 0,
-    keepBuffer: 4, updateWhenZooming: false, errorTileUrl: TRANSPARENT, crossOrigin: false,
+    keepBuffer: 1, updateWhenZooming: false, errorTileUrl: TRANSPARENT, crossOrigin: false,
   });
   d.tile.on('tileload', () => d.stats.ok++);
   d.tile.on('tileerror', () => d.stats.err++);
@@ -213,12 +212,13 @@ function apply(y) {
   else if (e > 0.98) txt = `${B.name}, ${B.span}`;
   else txt = `${A.name} to ${B.name}, ${Math.round(e * 100)}% blended`;
   $('blend').textContent = txt;
-  document.querySelectorAll('#ticks button').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.y - y) < 1.5));
+  tickBtns.forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.y - y) < 1.5));
   lastYear = y;
 }
 
 /* ---------- slider + ticks ---------- */
 const slider = $('slider');
+let tickBtns = [];
 let lastYear = 1903;
 
 function buildSlider() {
@@ -241,10 +241,19 @@ function buildSlider() {
     b.addEventListener('click', () => { stopPlay(); tweenTo(d.year, 900); });
     ticks.appendChild(b);
   });
+  tickBtns = [...ticks.querySelectorAll('button')];
   apply(v);
 }
 
-slider.addEventListener('input', () => { stopPlay(); cancelTween(); apply(+slider.value); writeHash(); });
+let rafPending = false;
+slider.addEventListener('input', () => {
+  if (playing) stopPlay();
+  cancelTween();
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; apply(+slider.value); });
+  writeHash();
+});
 
 /* tween (tap a year label) */
 let tweenId = null;
@@ -330,10 +339,15 @@ $('locate').addEventListener('click', () => {
 });
 
 /* ---------- shareable view in the URL: #lat,lng,zoom,year,modern ---------- */
+let hashTimer = null;
 function writeHash() {
-  const c = map.getCenter();
-  const h = `#${c.lat.toFixed(5)},${c.lng.toFixed(5)},${map.getZoom()},${(+slider.value).toFixed(1)},${modernKey}`;
-  history.replaceState(null, '', h);
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => {
+    try {
+      const c = map.getCenter();
+      history.replaceState(null, '', `#${c.lat.toFixed(5)},${c.lng.toFixed(5)},${map.getZoom()},${(+slider.value).toFixed(1)},${modernKey}`);
+    } catch (e) {}
+  }, 600);
 }
 function readHash() {
   const p = location.hash.slice(1).split(',');
