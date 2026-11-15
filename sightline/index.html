@@ -298,6 +298,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* Guided link flow: lives in the part of the sheet that stays on screen */
 .flow { display: flex; flex-direction: column; gap: 10px; padding-top: 2px; }
 .steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.stepchip.exit { margin-left: auto; padding-left: 14px; padding-right: 14px; }
 .stepchip {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 4px; max-width: 100%;
   border-radius: 999px; border: 1px solid var(--rule); background: transparent; color: var(--ink-soft);
@@ -357,28 +358,19 @@ details.key[open] summary::before { content: "\2212"; }
   background: var(--ink); color: var(--panel); padding: 10px 14px; border-radius: 10px;
   font-size: 14px; box-shadow: var(--shadow); max-width: calc(100vw - 32px);
 }
-.layerbtn {
-  position: fixed; z-index: 5;
-  right: max(12px, env(safe-area-inset-right, 0px));
-  bottom: calc(var(--sheet-h, 0px) + 12px);
-  transition: bottom .45s cubic-bezier(.32, .72, 0, 1);
-  height: 40px; padding: 0 12px; border: 0; border-radius: 10px; cursor: pointer;
-  background: var(--panel); color: var(--ink); box-shadow: var(--shadow);
-  font: 600 13px var(--f-body); display: inline-flex; align-items: center; gap: 6px;
-}
-html.sheet-drag .layerbtn { transition: none; }
-.layerbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (min-width: 900px) { .layerbtn { right: 422px; bottom: 16px; } }
 .ol-attribution.ol-uncollapsible {
   top: auto; right: auto; bottom: 16px; left: 16px; max-width: 50vw;
   border-radius: 6px; background: rgba(255,255,255,.8); font-size: 11px;
 }
-@media (max-width: 899px) { .ol-attribution { display: none; } }
+@media (max-width: 899px) {
+  .ol-attribution.ol-uncollapsible { left: 8px; bottom: calc(var(--sheet-h, 0px) + 8px); max-width: calc(100vw - 16px); transition: bottom .45s cubic-bezier(.32, .72, 0, 1); }
+  html.sheet-drag .ol-attribution.ol-uncollapsible { transition: none; }
+}
 .attr-mobile { font-size: 11px; color: var(--ink-soft); margin: 0; }
 @media (min-width: 900px) { .attr-mobile { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .status.busy::before { animation: none; }
-  .sheet.snapping, .layerbtn { transition: none; }
+  .sheet.snapping { transition: none; }
 }
 </style>
 </head>
@@ -501,20 +493,15 @@ html.sheet-drag .layerbtn { transition: none; }
       <span id="gridNote"></span>
     </p>
     <p class="note">
-      <b>Link</b> looks for high ground within walking distance of each of you, then checks every pair of spots. Radio needs more room than sight: for a strong signal the line should clear 60% of the first <b>Fresnel zone</b>, the football-shaped space around it. At 446 MHz over 8 km that's about 22 m at the midpoint. Radio uses the standard 4/3 Earth radius for bending. <b>Clear</b> means the full zone is free; <b>sight line only</b> means you can see each other but the zone is partly blocked, so radio may be weak. 2 m radio often works with less clearance than this. Walking distances are as the crow flies, with times by Naismith's rule (5 km/h plus a minute per 10 m of climb), so check paths and access on the Topo map before setting off, and do a test call.
+      <b>Link</b> looks for high ground within walking distance of each of you, then checks every pair of spots. Radio needs more room than sight: for a strong signal the line should clear 60% of the first <b>Fresnel zone</b>, the football-shaped space around it. At 446 MHz over 8 km that's about 22 m at the midpoint. Radio uses the standard 4/3 Earth radius for bending. <b>Clear</b> means the full zone is free; <b>sight line only</b> means you can see each other but the zone is partly blocked, so radio may be weak. 2 m radio often works with less clearance than this. Walking distances are as the crow flies, with times by Naismith's rule (5 km/h plus a minute per 10 m of climb), so check paths and access on a local map before setting off, and do a test call.
     </p>
     <p class="note">
       In England, every line Link suggests is then re-checked against the Environment Agency's <b>1 m LIDAR</b> surface, sampled every 10 m, which includes trees, hedges and buildings. The first 25 m at each end is skipped so a roof or tree you can step out from doesn't count. Anything those block is moved down the list. Elsewhere the check is bare ground only. Shading is worked out on the 30 m terrain. For torch, flag or mirror, the visibility forecast comes from Open-Meteo.
     </p>
   </details>
-  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. LIDAR: © Environment Agency copyright and/or database right 2022. Weather: Open-Meteo.com (CC BY 4.0). Maps and hill names: © OpenStreetMap contributors, OpenTopoMap (CC-BY-SA). Relief and imagery: © Esri.</p>
+  <p class="attr-mobile">Terrain: Mapzen Terrain Tiles. LIDAR: © Environment Agency copyright and/or database right 2022. Weather: Open-Meteo.com (CC BY 4.0).</p>
   </div></div>
 </section>
-
-<button class="layerbtn" id="bgToggle" type="button" aria-label="Change map style">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>
-  <span id="bgText">Topo</span>
-</button>
 
 <div class="toast" id="toast" role="status" hidden></div>
 
@@ -866,22 +853,8 @@ function viewshedDisc(p) {
   const nameOf = (pt) => pt.view ? (pt.name || "Your viewpoint") : (pt.name || "Hill " + fmtH(pt.h));
 
   // ---- map ----
-  const esri = (svc, maxZoom, attr) => new ol.source.XYZ({
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/" + svc + "/MapServer/tile/{z}/{y}/{x}",
-    maxZoom, attributions: attr || "Basemap © Esri, HERE, Garmin, © OpenStreetMap contributors"
-  });
-  const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors';
-  const BG = {
-    // OpenStreetMap data with contours, hill shading and named peaks: the closest free thing to an OS Explorer map
-    topo: [new ol.layer.Tile({ source: new ol.source.XYZ({
-      url: "https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png", maxZoom: 17,
-      attributions: "Map data " + OSM_ATTR + ", SRTM. Style © <a href=\"https://opentopomap.org\" target=\"_blank\">OpenTopoMap</a> (CC-BY-SA)" }) })],
-    streets: [new ol.layer.Tile({ source: new ol.source.OSM({ attributions: OSM_ATTR }), visible: false })],
-    relief: [new ol.layer.Tile({ source: esri("Canvas/World_Light_Gray_Base", 16), visible: false }),
-             new ol.layer.Tile({ source: esri("Elevation/World_Hillshade", 16, "Hillshade © Esri"), opacity: .42, visible: false })],
-    satellite: [new ol.layer.Tile({ source: esri("World_Imagery", 19, "Imagery © Esri, Maxar, Earthstar Geographics"), visible: false })]
-  };
-  const places = new ol.layer.Tile({ source: esri("Reference/World_Boundaries_and_Places", 19), visible: false });
+  const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+  const basemap = new ol.layer.Tile({ source: new ol.source.OSM({ attributions: OSM_ATTR, maxZoom: 19 }) });
 
   const linesSrc = new ol.source.Vector(), chevSrc = new ol.source.Vector(), selSrc = new ol.source.Vector();
   const hillSrc = new ol.source.Vector(), labelSrc = new ol.source.Vector(), vpSrc = new ol.source.Vector();
@@ -899,7 +872,7 @@ function viewshedDisc(p) {
 
   const map = new ol.Map({
     target: "map",
-    layers: [...BG.topo, ...BG.streets, ...BG.relief, ...BG.satellite, places, shadeLayer, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer, linkLayer, pinLayer],
+    layers: [basemap, shadeLayer, linesLayer, selLayer, chevLayer, hillLayer, labelLayer, vpLayer, linkLayer, pinLayer],
     controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attributionOptions: { collapsible: false } }),
     view: new ol.View({ center: ol.proj.fromLonLat([START.lon, START.lat]), zoom: START.zoom, minZoom: 6, maxZoom: 16, enableRotation: false })
   });
@@ -1843,6 +1816,10 @@ function viewshedDisc(p) {
       b.addEventListener("click", () => goStep(k));
       steps.appendChild(b);
     });
+    const exit = h("button", "stepchip exit", "Done"); exit.type = "button";
+    exit.setAttribute("aria-label", "Leave Link and go back to all hills");
+    exit.addEventListener("click", () => setMode("all"));
+    steps.appendChild(exit);
     el.appendChild(steps);
 
     if (linkStep === "A" || linkStep === "B") {
@@ -2204,20 +2181,6 @@ function viewshedDisc(p) {
   $("minH").addEventListener("input", (e) => { minH = toH(+e.target.value); pref.set("minH", minH); syncSliders(); clearTimeout(sliderTimer); sliderTimer = setTimeout(computeLines, 120); });
   $("minP").addEventListener("input", (e) => { minP = toP(+e.target.value); pref.set("minP", minP); syncSliders(); clearTimeout(sliderTimer); sliderTimer = setTimeout(computeLines, 120); });
   syncSliders();
-
-  // map style
-  const BG_ORDER = ["topo", "streets", "relief", "satellite"];
-  const BG_NAME = { topo: "Topo", streets: "Streets", relief: "Relief", satellite: "Satellite" };
-  let bg = pref.get("bg2", "topo");
-  function setBg(name) {
-    bg = name; pref.set("bg2", bg);
-    BG_ORDER.forEach((k) => BG[k].forEach((l) => l.setVisible(k === bg)));
-    places.setVisible(bg === "relief" || bg === "satellite");
-    $("bgText").textContent = BG_NAME[bg];
-    $("bgToggle").setAttribute("aria-label", "Map style: " + BG_NAME[bg] + ". Tap to change.");
-  }
-  $("bgToggle").addEventListener("click", () => setBg(BG_ORDER[(BG_ORDER.indexOf(bg) + 1) % BG_ORDER.length]));
-  setBg(BG_ORDER.includes(bg) ? bg : "topo");
 
   // ---- bottom sheet (same behaviour as Floodline) ----
   const sheet = $("sheet"), more = $("more");
